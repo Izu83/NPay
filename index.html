@@ -3,114 +3,136 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#12a150">
+  <meta name="theme-color" content="#07c160">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="NPay">
   <title>NPay Wallet</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <main class="app">
-    <header class="topbar">
-      <div class="logo"><span class="logo-mark">N</span>NPay</div>
-      <a class="link" href="terminal.html">Terminal →</a>
+    <header class="topbar rise">
+      <div class="hello">
+        <div class="avatar" id="avatar">M</div>
+        <div style="min-width:0">
+          <div class="sub" id="greeting">Hello</div>
+          <div class="name" id="ownerName">Me</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <a class="icon-btn" href="terminal.html" aria-label="Open terminal" title="Terminal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>
+        </a>
+        <button class="icon-btn" id="settingsBtn" aria-label="Settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+        </button>
+      </div>
     </header>
 
-    <section class="balance-card">
-      <div class="label">Balance</div>
-      <div class="amount" id="balance">0.00 NP</div>
-      <div class="owner" id="owner"></div>
+    <section class="balance-card rise d1">
+      <div class="bc-top">
+        <div class="bc-label">
+          Total balance
+        </div>
+        <button class="eye" id="eyeBtn" aria-label="Hide balance">
+          <svg id="eyeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+      <div class="bc-amount num" id="balance">€0.00</div>
+      <div class="bc-bottom">
+        <span class="chip-pill">EUR wallet</span>
+        <span style="font-weight:800;letter-spacing:-0.02em;font-size:16px">NPay</span>
+      </div>
     </section>
 
-    <button class="btn primary block scan-btn" id="scanBtn">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M4 12h16"/></svg>
-      Scan QR code
+    <button class="btn primary block scan-cta rise d2" id="scanBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M4 12h16"/></svg>
+      Scan to pay or receive
     </button>
 
-    <section class="panel">
-      <h2>Activity</h2>
+    <section class="panel rise d3">
+      <div class="panel-head"><h2>Activity</h2><span id="txCount"></span></div>
       <div id="history"></div>
     </section>
-
-    <p style="text-align:center;margin-top:20px">
-      <button class="link" id="settingsBtn">Wallet settings</button>
-    </p>
   </main>
 
   <!-- Scanner -->
-  <div class="overlay" id="scanOverlay">
-    <div class="overlay-inner">
-      <div class="topbar">
-        <div class="logo">Scan</div>
-        <button class="link" id="scanClose">Close</button>
-      </div>
-      <div class="scanner-view">
-        <video id="video" playsinline muted></video>
-        <div class="scanner-frame"></div>
-      </div>
-      <p class="scanner-hint" id="scanHint">Point the camera at the QR code on the screen.</p>
+  <div class="screen scanner" id="scanScreen" aria-hidden="true">
+    <video id="video" playsinline muted></video>
+    <div class="scan-top">
+      <div class="title">Scan QR code</div>
+      <button class="scan-close" id="scanClose" aria-label="Close scanner">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="scan-window" id="scanWindow">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <div class="laser"></div>
+    </div>
+    <p class="scan-hint" id="scanHint">Point your camera at the QR code</p>
+  </div>
+
+  <!-- Confirm sheet -->
+  <div class="backdrop" id="backdrop"></div>
+  <div class="sheet" id="confirmSheet" role="dialog" aria-modal="true">
+    <div class="grabber"></div>
+    <div class="pay-head">
+      <div class="avatar lg" id="cAvatar">N</div>
+      <div class="pay-kind" id="cKind">Pay to</div>
+      <div class="pay-who" id="cWho"></div>
+      <div class="pay-amount num" id="cAmount">€0.00</div>
+      <div class="note-chip" id="cNote"></div>
+    </div>
+    <div class="rows">
+      <div class="row"><span>Current balance</span><span class="num" id="cNow"></span></div>
+      <div class="row"><span>Balance after</span><span class="num" id="cAfter"></span></div>
+    </div>
+    <div class="actions two">
+      <button class="btn ghost" id="cCancel">Cancel</button>
+      <button class="btn primary" id="cOk">Pay</button>
     </div>
   </div>
 
-  <!-- Confirm -->
-  <div class="overlay" id="confirmOverlay">
-    <div class="overlay-inner">
-      <div class="confirm">
-        <div class="badge" id="cBadge">↗</div>
-        <div class="kind" id="cKind">Pay</div>
-        <div class="big" id="cAmount">0.00 NP</div>
-        <div class="to" id="cWho"></div>
-        <div class="note" id="cNote"></div>
-        <div class="after" id="cAfter"></div>
-      </div>
-      <div class="actions two">
-        <button class="btn" id="cCancel">Cancel</button>
-        <button class="btn primary" id="cOk">Confirm</button>
-      </div>
+  <!-- Settings sheet -->
+  <div class="sheet" id="settingsSheet" role="dialog" aria-modal="true">
+    <div class="grabber"></div>
+    <h3>Settings</h3>
+    <div class="field">
+      <label for="sName">Your name</label>
+      <input class="input" id="sName" maxlength="40" autocomplete="off">
+    </div>
+    <div class="actions">
+      <button class="btn primary block" id="sSave">Save</button>
+      <button class="btn danger block" id="sReset">Reset wallet</button>
     </div>
   </div>
 
   <!-- Result -->
-  <div class="overlay" id="resultOverlay">
-    <div class="overlay-inner">
-      <div class="confirm">
-        <div class="badge" id="rBadge">✓</div>
-        <div class="kind" id="rTitle">Done</div>
-        <div class="big" id="rAmount"></div>
-        <div class="note" id="rText"></div>
-      </div>
-      <div class="actions">
-        <button class="btn primary block" id="rDone">Done</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Settings -->
-  <div class="overlay" id="settingsOverlay">
-    <div class="overlay-inner">
-      <div class="topbar">
-        <div class="logo">Settings</div>
-        <button class="link" id="sClose">Close</button>
-      </div>
-      <div class="panel">
-        <div class="field">
-          <label for="sName">Your name</label>
-          <input id="sName" maxlength="40" autocomplete="off">
+  <div class="screen result" id="resultScreen" aria-hidden="true">
+    <div class="result-inner">
+      <div class="result-body">
+        <div class="check" id="rCheck">
+          <svg viewBox="0 0 104 104" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+            <circle class="ring" cx="52" cy="52" r="46" opacity="0.35"/>
+            <path class="mark" id="rMark" d="M34 53l12 12 24-26"/>
+          </svg>
         </div>
-        <button class="btn primary block" id="sSave">Save</button>
+        <div class="title" id="rTitle">Done</div>
+        <div class="amount num" id="rAmount"></div>
+        <div class="detail" id="rText"></div>
+        <div class="rows receipt" id="rReceipt"></div>
       </div>
-      <div class="panel" style="margin-top:16px">
-        <h2>Reset wallet</h2>
-        <p class="empty" style="text-align:left">Sets your balance back to the starting amount and clears your activity.</p>
-        <button class="btn danger block" id="sReset">Reset wallet</button>
-      </div>
+      <button class="btn primary block" id="rDone">Done</button>
     </div>
   </div>
-
-  <div class="toast" id="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <script src="js/common.js"></script>

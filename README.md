@@ -1,6 +1,6 @@
 # NPay
 
-A small QR-code payment app, a bit like Alipay / WeChat Pay, but with play money (**NP**).
+A small QR-code payment app, a bit like Alipay / WeChat Pay, but with play money in **euro (€)**.
 
 - **Terminal** (`terminal.html`), opened on the computer: enter an amount and it shows a QR code.
   - **Charge**: the phone that scans **pays** that amount.
@@ -33,9 +33,9 @@ Then open http://localhost:8765/terminal.html.
 
 GitHub Pages only hosts static files and has no server or database, so:
 
-- Each phone's balance is stored **only in that phone's browser** (localStorage). A new wallet starts with 100.00 NP.
+- Each phone's balance is stored **only in that phone's browser** (localStorage). A new wallet starts with €100.00.
 - The terminal **can't see** whether a phone actually paid. The person paying shows their "Paid" screen.
-- Anyone can make a "Give money" code, so this is for fun or demos, not real money.
+- Anyone can make a "Give money" code, so this is for fun or demos, not real money — the euros are pretend.
 
 To add real accounts, live "payment received" on the computer, and phone-to-phone transfers, the next step is a free backend such as Firebase or Supabase. That can still be hosted from GitHub Pages.
 

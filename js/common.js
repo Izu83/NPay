@@ -14,7 +14,7 @@
 //   exp  expiry time (ms since epoch)
 
 const NPay = (() => {
-  const CURRENCY = "NP";
+  const CURRENCY = "EUR";
 
   function toB64Url(str) {
     const bytes = new TextEncoder().encode(str);
@@ -68,10 +68,14 @@ const NPay = (() => {
     return u.href;
   }
 
-  function money(cents) {
-    const sign = cents < 0 ? "−" : "";
-    const abs = Math.abs(cents);
-    return `${sign}${(abs / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${CURRENCY}`;
+  const fmt = new Intl.NumberFormat(undefined, { style: "currency", currency: CURRENCY });
+
+  // money(1250) -> "€12.50" (format follows the device's language, e.g. "12,50 €")
+  // money(-1250, true) -> "−€12.50", money(1250, true) -> "+€12.50"
+  function money(cents, withSign = false) {
+    const s = fmt.format(Math.abs(cents) / 100);
+    if (cents < 0) return "−" + s;
+    return withSign && cents > 0 ? "+" + s : s;
   }
 
   // Parse "12", "12.5", "12,50" into cents. Returns null if invalid.
@@ -103,5 +107,41 @@ const NPay = (() => {
     return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
-  return { CURRENCY, newId, encodeRequest, decodeRequest, parseScanned, walletUrl, money, parseAmount, store, escapeHtml };
+  function initials(name) {
+    const parts = String(name).trim().split(/\s+/).filter(Boolean);
+    return ((parts[0]?.[0] || "N") + (parts[1]?.[0] || "")).toUpperCase();
+  }
+
+  // Smoothly count a money value from one amount to another.
+  function animateMoney(el, from, to, ms = 700) {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches || from === to) {
+      el.textContent = money(to);
+      return;
+    }
+    const start = performance.now();
+    cancelAnimationFrame(el._raf);
+    const step = (now) => {
+      const p = Math.min(1, (now - start) / ms);
+      const e = 1 - Math.pow(1 - p, 3);
+      el.textContent = money(Math.round(from + (to - from) * e));
+      if (p < 1) el._raf = requestAnimationFrame(step);
+    };
+    el._raf = requestAnimationFrame(step);
+  }
+
+  function toast(msg) {
+    let t = document.getElementById("toast");
+    if (!t) {
+      t = document.createElement("div");
+      t.id = "toast";
+      t.className = "toast";
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => t.classList.remove("show"), 2400);
+  }
+
+  return { CURRENCY, newId, initials, animateMoney, toast, encodeRequest, decodeRequest, parseScanned, walletUrl, money, parseAmount, store, escapeHtml };
 })();
