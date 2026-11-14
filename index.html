@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#12a150">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="NPay">
+  <title>NPay Wallet</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="logo"><span class="logo-mark">N</span>NPay</div>
+      <a class="link" href="terminal.html">Terminal →</a>
+    </header>
+
+    <section class="balance-card">
+      <div class="label">Balance</div>
+      <div class="amount" id="balance">0.00 NP</div>
+      <div class="owner" id="owner"></div>
+    </section>
+
+    <button class="btn primary block scan-btn" id="scanBtn">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M4 12h16"/></svg>
+      Scan QR code
+    </button>
+
+    <section class="panel">
+      <h2>Activity</h2>
+      <div id="history"></div>
+    </section>
+
+    <p style="text-align:center;margin-top:20px">
+      <button class="link" id="settingsBtn">Wallet settings</button>
+    </p>
+  </main>
+
+  <!-- Scanner -->
+  <div class="overlay" id="scanOverlay">
+    <div class="overlay-inner">
+      <div class="topbar">
+        <div class="logo">Scan</div>
+        <button class="link" id="scanClose">Close</button>
+      </div>
+      <div class="scanner-view">
+        <video id="video" playsinline muted></video>
+        <div class="scanner-frame"></div>
+      </div>
+      <p class="scanner-hint" id="scanHint">Point the camera at the QR code on the screen.</p>
+    </div>
+  </div>
+
+  <!-- Confirm -->
+  <div class="overlay" id="confirmOverlay">
+    <div class="overlay-inner">
+      <div class="confirm">
+        <div class="badge" id="cBadge">↗</div>
+        <div class="kind" id="cKind">Pay</div>
+        <div class="big" id="cAmount">0.00 NP</div>
+        <div class="to" id="cWho"></div>
+        <div class="note" id="cNote"></div>
+        <div class="after" id="cAfter"></div>
+      </div>
+      <div class="actions two">
+        <button class="btn" id="cCancel">Cancel</button>
+        <button class="btn primary" id="cOk">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Result -->
+  <div class="overlay" id="resultOverlay">
+    <div class="overlay-inner">
+      <div class="confirm">
+        <div class="badge" id="rBadge">✓</div>
+        <div class="kind" id="rTitle">Done</div>
+        <div class="big" id="rAmount"></div>
+        <div class="note" id="rText"></div>
+      </div>
+      <div class="actions">
+        <button class="btn primary block" id="rDone">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div class="overlay" id="settingsOverlay">
+    <div class="overlay-inner">
+      <div class="topbar">
+        <div class="logo">Settings</div>
+        <button class="link" id="sClose">Close</button>
+      </div>
+      <div class="panel">
+        <div class="field">
+          <label for="sName">Your name</label>
+          <input id="sName" maxlength="40" autocomplete="off">
+        </div>
+        <button class="btn primary block" id="sSave">Save</button>
+      </div>
+      <div class="panel" style="margin-top:16px">
+        <h2>Reset wallet</h2>
+        <p class="empty" style="text-align:left">Sets your balance back to the starting amount and clears your activity.</p>
+        <button class="btn danger block" id="sReset">Reset wallet</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/wallet.js"></script>
+</body>
+</html>

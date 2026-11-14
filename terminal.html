@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NPay Terminal</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <main class="terminal">
+    <header class="topbar">
+      <div class="logo"><span class="logo-mark">N</span>NPay Terminal</div>
+      <a class="link" href="./">← Wallet</a>
+    </header>
+
+    <div class="term-grid">
+      <section class="panel">
+        <div class="segmented" role="tablist">
+          <button id="modePay" class="on" role="tab">Charge</button>
+          <button id="modeGet" role="tab">Give money</button>
+        </div>
+        <p class="qr-sub" id="modeHelp" style="margin:0 0 14px">The phone that scans pays this amount.</p>
+
+        <div class="field">
+          <label for="amount">Amount (NP)</label>
+          <input id="amount" class="amount-input" inputmode="decimal" placeholder="0.00" autocomplete="off">
+        </div>
+        <div class="quick">
+          <button class="btn" data-q="1">1</button>
+          <button class="btn" data-q="5">5</button>
+          <button class="btn" data-q="10">10</button>
+          <button class="btn" data-q="20">20</button>
+        </div>
+        <div class="field">
+          <label for="note">Note (optional)</label>
+          <input id="note" maxlength="60" placeholder="e.g. Coffee" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="who">Terminal name</label>
+          <input id="who" maxlength="40" autocomplete="off">
+        </div>
+        <button class="btn primary block" id="makeBtn">Show QR code</button>
+      </section>
+
+      <section class="panel qr-stage" id="stage">
+        <div class="stage-empty">
+          <div class="big-icon">▦</div>
+          Enter an amount and press <b>Show QR code</b>. Then scan it with the NPay wallet on your phone.
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/terminal.js"></script>
+</body>
+</html>
