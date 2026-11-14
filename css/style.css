@@ -337,7 +337,7 @@ button { cursor: pointer; }
 .actions { display: grid; gap: 10px; }
 .actions.two { grid-template-columns: 1fr 1.6fr; }
 
-.field { display: grid; gap: 7px; margin-bottom: 14px; }
+.field { display: grid; grid-template-columns: minmax(0, 1fr); gap: 7px; margin-bottom: 14px; }
 .field label { font-size: 13px; color: var(--muted); font-weight: 600; }
 .input {
   border: 1px solid var(--border);
@@ -498,7 +498,7 @@ button { cursor: pointer; }
 .amount-wrap:focus-within { border-color: var(--brand); box-shadow: 0 0 0 4px var(--brand-soft); background: var(--surface); }
 .amount-wrap .cur { font-size: 30px; font-weight: 700; color: var(--faint); }
 .amount-wrap input {
-  flex: 1; min-width: 0; border: 0; outline: none; background: transparent;
+  flex: 1; width: 0; min-width: 0; border: 0; outline: none; background: transparent;
   font-size: 40px; font-weight: 800; letter-spacing: -0.03em; text-align: right;
   font-variant-numeric: tabular-nums; padding: 0;
 }
