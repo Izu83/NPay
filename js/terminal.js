@@ -48,7 +48,7 @@
       note: $("note").value.trim() || undefined,
       exp: Date.now() + VALID_MINUTES * 60 * 1000,
     };
-    const link = NPay.walletUrl() + "#r=" + NPay.encodeRequest(req);
+    const link = NPay.linkFor(req);
 
     $("stage").innerHTML = `
       <div class="qr-show">
@@ -68,7 +68,7 @@
       </div>`;
 
     // High error correction so the logo in the middle doesn't break scanning.
-    new QRCode($("qr"), { text: link, width: 512, height: 512, colorDark: "#0f1712", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.H });
+    NPay.drawQr($("qr"), link, 512);
 
     $("copyBtn").onclick = async () => {
       try { await navigator.clipboard.writeText(link); NPay.toast("Link copied"); } catch { NPay.toast("Couldn't copy"); }

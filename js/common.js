@@ -3,18 +3,21 @@
 // A QR code holds a link like  https://<you>.github.io/NPay/#r=<payload>
 // so it can be scanned from inside the wallet OR with the phone's normal camera app.
 //
-// Payload (JSON, base64url encoded):
-//   v    version (1)
-//   t    "pay"  -> the scanner PAYS money to the terminal (a charge)
-//        "get"  -> the scanner RECEIVES money from the terminal (a payout)
-//   id   unique id, so the same QR can't be used twice
-//   amt  amount in cents (integer)
-//   who  name of the terminal / shop
-//   note optional text
-//   exp  expiry time (ms since epoch)
+// Payload (JSON, base64url encoded), always { v: 1, t: <type>, ... }:
+//
+//   t: "pay"   terminal charge   -> the scanner PAYS   { id, amt, who, note?, exp }
+//   t: "get"   terminal payout   -> the scanner GETS   { id, amt, who, note?, exp }
+//   t: "user"  an account's own code (send money to them)
+//              { uid, u: username, n: name, c: avatar colour, amt?, note? }
+//   t: "xfer"  a claim code made after sending money to someone;
+//              only the account it is addressed to can take it
+//              { id, amt, who: sender name, fu: sender username, to: recipient uid, note?, exp }
+//
+// amt is always in cents (integer).
 
 const NPay = (() => {
   const CURRENCY = "EUR";
+  const COLORS = ["#32292f", "#2a9d8f", "#0f766e", "#2563eb", "#475569", "#ea580c", "#e11d48", "#b45309"];
 
   function toB64Url(str) {
     const bytes = new TextEncoder().encode(str);
@@ -31,24 +34,29 @@ const NPay = (() => {
     return new TextDecoder().decode(bytes);
   }
 
-  function newId() {
-    const a = new Uint8Array(9);
+  function newId(len = 14) {
+    const a = new Uint8Array(len);
     crypto.getRandomValues(a);
-    return Array.from(a, (b) => b.toString(36).padStart(2, "0")).join("").slice(0, 14);
+    return Array.from(a, (b) => b.toString(36).padStart(2, "0")).join("").slice(0, len);
   }
 
   function encodeRequest(req) {
-    return toB64Url(JSON.stringify({ v: 1, ...req }));
+    const clean = {};
+    for (const [k, v] of Object.entries(req)) if (v !== undefined && v !== "") clean[k] = v;
+    return toB64Url(JSON.stringify({ v: 1, ...clean }));
   }
+
+  const isStr = (x) => typeof x === "string" && x.length > 0;
+  const isAmt = (x) => Number.isInteger(x) && x > 0;
 
   function decodeRequest(encoded) {
     try {
-      const obj = JSON.parse(fromB64Url(encoded));
-      if (obj.v !== 1) return null;
-      if (obj.t !== "pay" && obj.t !== "get") return null;
-      if (!Number.isInteger(obj.amt) || obj.amt <= 0) return null;
-      if (typeof obj.id !== "string" || typeof obj.who !== "string") return null;
-      return obj;
+      const o = JSON.parse(fromB64Url(encoded));
+      if (o.v !== 1) return null;
+      if (o.t === "pay" || o.t === "get") return isAmt(o.amt) && isStr(o.id) && isStr(o.who) ? o : null;
+      if (o.t === "user") return isStr(o.uid) && isStr(o.u) && isStr(o.n) && (o.amt === undefined || isAmt(o.amt)) ? o : null;
+      if (o.t === "xfer") return isAmt(o.amt) && isStr(o.id) && isStr(o.who) && isStr(o.to) ? o : null;
+      return null;
     } catch {
       return null;
     }
@@ -66,6 +74,10 @@ const NPay = (() => {
     u.hash = "";
     u.search = "";
     return u.href;
+  }
+
+  function linkFor(req) {
+    return walletUrl() + "#r=" + encodeRequest(req);
   }
 
   const fmt = new Intl.NumberFormat(undefined, { style: "currency", currency: CURRENCY });
@@ -99,7 +111,13 @@ const NPay = (() => {
     set(key, value) {
       try {
         localStorage.setItem(key, JSON.stringify(value));
-      } catch {}
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    remove(key) {
+      try { localStorage.removeItem(key); } catch {}
     },
   };
 
@@ -110,6 +128,29 @@ const NPay = (() => {
   function initials(name) {
     const parts = String(name).trim().split(/\s+/).filter(Boolean);
     return ((parts[0]?.[0] || "N") + (parts[1]?.[0] || "")).toUpperCase();
+  }
+
+  // Pick a stable colour for a name/id that has none.
+  function colorFor(seed) {
+    let h = 0;
+    for (const ch of String(seed)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    return COLORS[h % COLORS.length];
+  }
+
+  // Fill an element with a profile picture, or initials on a coloured disc.
+  function paintAvatar(el, { name = "", pfp = null, color = null } = {}) {
+    el.classList.add("avatar");
+    el.style.background = pfp ? "" : color || colorFor(name);
+    el.style.color = pfp ? "" : "#fff";
+    if (pfp) {
+      el.innerHTML = "";
+      const img = new Image();
+      img.alt = "";
+      img.src = pfp;
+      el.appendChild(img);
+    } else {
+      el.textContent = initials(name);
+    }
   }
 
   // Smoothly count a money value from one amount to another.
@@ -135,6 +176,7 @@ const NPay = (() => {
       t = document.createElement("div");
       t.id = "toast";
       t.className = "toast";
+      t.setAttribute("role", "status");
       document.body.appendChild(t);
     }
     t.textContent = msg;
@@ -143,5 +185,48 @@ const NPay = (() => {
     toast._t = setTimeout(() => t.classList.remove("show"), 2400);
   }
 
-  return { CURRENCY, newId, initials, animateMoney, toast, encodeRequest, decodeRequest, parseScanned, walletUrl, money, parseAmount, store, escapeHtml };
+  // Draw a QR code into `el` as a canvas (needs qrcode-generator). High error correction so
+  // a logo or photo in the middle doesn't stop it from scanning; drops a level only if the
+  // text is too long for it.
+  function drawQr(el, text, size = 512) {
+    el.innerHTML = "";
+    if (!window.qrcode) { el.innerHTML = '<p style="line-height:1.4;color:#32292f;padding:20px">Couldn\'t load the QR maker. Check your connection and reload.</p>'; return null; }
+    let qr = null;
+    for (const level of ["H", "Q", "M", "L"]) {
+      try { qr = qrcode(0, level); qr.addData(text, "Byte"); qr.make(); break; } catch { qr = null; }
+    }
+    if (!qr) return null;
+    const n = qr.getModuleCount();
+    const quiet = 2;
+    const cell = Math.max(1, Math.floor(size / (n + quiet * 2)));
+    const px = cell * (n + quiet * 2);
+    const c = document.createElement("canvas");
+    c.width = c.height = px;
+    c.setAttribute("role", "img");
+    c.setAttribute("aria-label", "QR code");
+    const g = c.getContext("2d");
+    g.fillStyle = "#ffffff";
+    g.fillRect(0, 0, px, px);
+    g.fillStyle = "#32292f";
+    for (let r = 0; r < n; r++) for (let col = 0; col < n; col++) {
+      if (qr.isDark(r, col)) g.fillRect((col + quiet) * cell, (r + quiet) * cell, cell, cell);
+    }
+    el.appendChild(c);
+    return c;
+  }
+
+  // Theme: "system" | "light" | "dark", stored per device.
+  function applyTheme(theme = store.get("npay.theme", "system")) {
+    if (theme === "system") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", theme);
+    const dark = theme === "dark" || (theme === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#1b1519" : "#e8f3f1");
+  }
+  applyTheme();
+
+  return {
+    CURRENCY, COLORS, newId, initials, colorFor, paintAvatar, animateMoney, toast,
+    encodeRequest, decodeRequest, parseScanned, walletUrl, linkFor, money, parseAmount,
+    store, escapeHtml, drawQr, applyTheme,
+  };
 })();

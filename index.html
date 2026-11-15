@@ -3,69 +3,165 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#07c160">
+  <meta name="theme-color" content="#e8f3f1">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="NPay">
+  <meta name="description" content="NPay — a QR-code wallet in euro. Scan to pay, show your code to get paid.">
   <title>NPay Wallet</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="apple-touch-icon" href="icon-180.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <main class="app">
-    <header class="topbar rise">
-      <div class="hello">
-        <div class="avatar" id="avatar">M</div>
-        <div style="min-width:0">
-          <div class="sub" id="greeting">Hello</div>
-          <div class="name" id="ownerName">Me</div>
+  <!-- ================= Sign in / create account ================= -->
+  <div class="auth" id="authView" hidden>
+    <div class="auth-inner">
+      <div class="wordmark rise">
+        <span class="logo-mark"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 20V4h3.6l6.8 9.6V4H19v16h-3.6L8.6 10.4V20z"/></svg></span>
+        NPay
+      </div>
+      <h1 class="auth-title rise d1">Pay with a scan.</h1>
+      <p class="auth-lede rise d1">Scan a code to pay, show yours to get paid. Every new account starts with €100.00 of play money.</p>
+
+      <section class="saved rise d2" id="savedWrap" hidden>
+        <h2 class="group-title">On this phone</h2>
+        <div class="saved-list" id="savedList"></div>
+      </section>
+
+      <div class="auth-card rise d2">
+        <div class="segmented" id="authSeg" data-mode="a" role="tablist" aria-label="Sign in or create an account">
+          <span class="thumb"></span>
+          <button type="button" id="tabIn" class="on" role="tab" aria-selected="true" aria-controls="loginForm">Sign in</button>
+          <button type="button" id="tabUp" role="tab" aria-selected="false" aria-controls="signupForm">Create account</button>
         </div>
+
+        <form id="loginForm" class="auth-form" novalidate>
+          <div class="field">
+            <label for="liUser">Username</label>
+            <div class="input-wrap"><span class="at">@</span><input class="input" id="liUser" autocomplete="username" autocapitalize="none" spellcheck="false" required></div>
+          </div>
+          <div class="field">
+            <label for="liPass">Password</label>
+            <div class="input-wrap">
+              <input class="input" id="liPass" type="password" autocomplete="current-password" required>
+              <button type="button" class="reveal" data-reveal="liPass" aria-label="Show password">Show</button>
+            </div>
+          </div>
+          <p class="form-error" id="liErr" role="alert"></p>
+          <button class="btn primary block" type="submit" id="liBtn">Sign in</button>
+        </form>
+
+        <form id="signupForm" class="auth-form" novalidate hidden>
+          <div class="pfp-pick">
+            <label class="pfp-btn" for="suPhoto">
+              <span class="avatar xl" id="suAvatar"></span>
+              <span class="pfp-badge" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span>
+            </label>
+            <input type="file" id="suPhoto" accept="image/*" class="sr-only">
+            <div>
+              <div class="pfp-title">Profile photo</div>
+              <div class="pfp-sub">Optional. Tap the circle to pick one.</div>
+            </div>
+          </div>
+          <div class="field">
+            <label for="suName">Your name</label>
+            <input class="input" id="suName" maxlength="40" autocomplete="name" required>
+          </div>
+          <div class="field">
+            <label for="suUser">Username</label>
+            <div class="input-wrap"><span class="at">@</span><input class="input" id="suUser" maxlength="20" autocomplete="username" autocapitalize="none" spellcheck="false" aria-describedby="suUserHelp" required></div>
+            <span class="help" id="suUserHelp">3–20 letters, numbers, dots or underscores.</span>
+          </div>
+          <div class="field">
+            <label for="suPass">Password</label>
+            <div class="input-wrap">
+              <input class="input" id="suPass" type="password" autocomplete="new-password" aria-describedby="suPassHelp" required>
+              <button type="button" class="reveal" data-reveal="suPass" aria-label="Show password">Show</button>
+            </div>
+            <span class="help" id="suPassHelp">At least 4 characters.</span>
+          </div>
+          <p class="form-error" id="suErr" role="alert"></p>
+          <button class="btn primary block" type="submit" id="suBtn">Create account</button>
+        </form>
       </div>
-      <div style="display:flex;gap:8px">
-        <a class="icon-btn" href="terminal.html" aria-label="Open terminal" title="Terminal">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>
-        </a>
-        <button class="icon-btn" id="settingsBtn" aria-label="Settings">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
-        </button>
-      </div>
+
+      <p class="fine rise d3">Accounts are kept in this browser only. NPay uses pretend euros — it's for fun and demos, not real money.</p>
+      <a class="text-link rise d3" href="terminal.html">Open the shop terminal instead</a>
+    </div>
+  </div>
+
+  <!-- ================= Wallet home ================= -->
+  <main class="app" id="appView" hidden>
+    <header class="topbar">
+      <button class="me-btn" id="profileBtn" aria-label="Open your profile">
+        <span class="avatar" id="avatar"></span>
+        <span class="me-text">
+          <span class="sub" id="greeting">Hello</span>
+          <span class="name" id="ownerName">Me</span>
+        </span>
+      </button>
+      <a class="icon-btn" href="terminal.html" aria-label="Open shop terminal" title="Shop terminal">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>
+      </a>
     </header>
 
-    <section class="balance-card rise d1">
+    <h1 class="sr-only">Your NPay wallet</h1>
+
+    <section class="balance-card" aria-labelledby="balLabel">
       <div class="bc-top">
-        <div class="bc-label">
-          Total balance
-        </div>
+        <span id="balLabel">Balance</span>
         <button class="eye" id="eyeBtn" aria-label="Hide balance">
-          <svg id="eyeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+          <svg id="eyeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></svg>
         </button>
       </div>
-      <div class="bc-amount num" id="balance">€0.00</div>
+      <div class="bc-amount num" id="balance" aria-live="polite">€0.00</div>
       <div class="bc-bottom">
-        <span class="chip-pill">EUR wallet</span>
-        <span style="font-weight:800;letter-spacing:-0.02em;font-size:16px">NPay</span>
+        <span id="bcUser">@me</span>
+        <span>EUR</span>
       </div>
     </section>
 
-    <button class="btn primary block scan-cta rise d2" id="scanBtn">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M4 12h16"/></svg>
-      Scan to pay or receive
-    </button>
+    <div class="actions-row">
+      <button class="action primary" id="scanBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M4 12h16"/></svg>
+        <span><b>Scan</b><small>Pay or send</small></span>
+      </button>
+      <button class="action" id="codeBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/></svg>
+        <span><b>My code</b><small>Get paid</small></span>
+      </button>
+    </div>
 
-    <section class="panel rise d3">
-      <div class="panel-head"><h2>Activity</h2><span id="txCount"></span></div>
+    <section class="month" aria-labelledby="monthTitle">
+      <h2 class="group-title" id="monthTitle">This month</h2>
+      <div class="month-grid">
+        <div><span class="m-label">Money in</span><span class="m-val num in" id="mIn">€0.00</span></div>
+        <div><span class="m-label">Money out</span><span class="m-val num" id="mOut">€0.00</span></div>
+      </div>
+      <div class="month-bar" aria-hidden="true"><i id="mBarIn"></i><i id="mBarOut"></i></div>
+    </section>
+
+    <section class="panel" aria-labelledby="actTitle">
+      <div class="panel-head">
+        <h2 id="actTitle">Activity</h2>
+        <div class="chips" role="group" aria-label="Filter activity">
+          <button class="chip on" data-f="all" aria-pressed="true">All</button>
+          <button class="chip" data-f="in" aria-pressed="false">In</button>
+          <button class="chip" data-f="out" aria-pressed="false">Out</button>
+        </div>
+      </div>
       <div id="history"></div>
     </section>
   </main>
 
-  <!-- Scanner -->
-  <div class="screen scanner" id="scanScreen" aria-hidden="true">
+  <!-- ================= Scanner ================= -->
+  <div class="screen scanner" id="scanScreen" aria-hidden="true" role="dialog" aria-label="Scan QR code">
     <video id="video" playsinline muted></video>
     <div class="scan-top">
       <div class="title">Scan QR code</div>
@@ -77,15 +173,129 @@
       <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
       <div class="laser"></div>
     </div>
-    <p class="scan-hint" id="scanHint">Point your camera at the QR code</p>
+    <div class="scan-bottom">
+      <p class="scan-hint" id="scanHint">Point your camera at a QR code</p>
+      <button class="btn on-dark" id="scanToCode">Show my code instead</button>
+    </div>
   </div>
 
-  <!-- Confirm sheet -->
+  <!-- ================= My code ================= -->
+  <div class="screen code-screen" id="codeScreen" aria-hidden="true" role="dialog" aria-labelledby="codeTitle">
+    <div class="screen-bar">
+      <button class="icon-btn on-field" id="codeClose" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+      <h2 class="screen-title" id="codeTitle">My code</h2>
+      <button class="icon-btn on-field" id="codeScan" aria-label="Scan instead">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M4 12h16"/></svg>
+      </button>
+    </div>
+    <div class="code-body">
+      <div class="code-card" id="codeCard">
+        <span class="avatar lg code-avatar" id="codeAvatar"></span>
+        <div class="code-name" id="codeName"></div>
+        <div class="code-user" id="codeUser"></div>
+        <div class="code-amount num" id="codeAmount" hidden></div>
+        <div class="qr-frame small" id="codeQrFrame">
+          <div id="codeQr"></div>
+          <div class="qr-logo"><span id="codeLogo"></span></div>
+        </div>
+        <p class="code-caption" id="codeCaption">Scan with NPay to send me money</p>
+      </div>
+      <div class="code-actions">
+        <button class="btn on-field" id="codeAmountBtn">Request an amount</button>
+        <button class="btn on-field" id="codeSaveBtn">Save image</button>
+        <button class="btn on-field" id="codeShareBtn">Share link</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= Profile ================= -->
+  <div class="screen page-screen" id="profileScreen" aria-hidden="true" role="dialog" aria-labelledby="profileTitle">
+    <div class="page-inner">
+      <div class="screen-bar">
+        <button class="icon-btn" id="profileClose" aria-label="Back">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+        </button>
+        <h2 class="screen-title" id="profileTitle">Profile</h2>
+        <span style="width:44px"></span>
+      </div>
+
+      <div class="profile-head">
+        <label class="pfp-btn" for="pPhoto" aria-label="Change profile photo">
+          <span class="avatar xxl" id="pAvatar"></span>
+          <span class="pfp-badge" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span>
+        </label>
+        <input type="file" id="pPhoto" accept="image/*" class="sr-only">
+        <div class="p-name" id="pNameView"></div>
+        <div class="p-user" id="pUserView"></div>
+        <button class="text-btn" id="pRemovePhoto" hidden>Remove photo</button>
+      </div>
+
+      <section class="group">
+        <h3 class="group-title">Details</h3>
+        <div class="group-card">
+          <div class="field">
+            <label for="pName">Display name</label>
+            <input class="input" id="pName" maxlength="40" autocomplete="name">
+          </div>
+          <div class="field" id="colorField">
+            <span class="label" id="colorLabel">Avatar colour</span>
+            <div class="swatches" id="swatches" role="radiogroup" aria-labelledby="colorLabel"></div>
+          </div>
+          <button class="btn primary block" id="pSave">Save changes</button>
+        </div>
+      </section>
+
+      <section class="group">
+        <h3 class="group-title">Your account</h3>
+        <div class="group-card list">
+          <div class="li"><span>Username</span><b id="pUser"></b></div>
+          <div class="li"><span>Member since</span><b id="pSince"></b></div>
+          <div class="li"><span>Payments</span><b class="num" id="pCount"></b></div>
+          <button class="li link" id="pShowCode"><span>Show my QR code</span><i aria-hidden="true">›</i></button>
+        </div>
+      </section>
+
+      <section class="group">
+        <h3 class="group-title" id="themeLabel">Appearance</h3>
+        <div class="group-card">
+          <div class="segmented three" id="themeSeg" data-mode="a" role="radiogroup" aria-labelledby="themeLabel">
+            <span class="thumb"></span>
+            <button role="radio" data-theme-opt="system">System</button>
+            <button role="radio" data-theme-opt="light">Light</button>
+            <button role="radio" data-theme-opt="dark">Dark</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="group">
+        <h3 class="group-title">Security</h3>
+        <div class="group-card list">
+          <button class="li link" id="pPassword"><span>Change password</span><i aria-hidden="true">›</i></button>
+          <button class="li link" id="pSwitch"><span>Switch account</span><i aria-hidden="true">›</i></button>
+          <button class="li link" id="pLogout"><span>Sign out</span><i aria-hidden="true">›</i></button>
+        </div>
+      </section>
+
+      <section class="group">
+        <h3 class="group-title">Danger zone</h3>
+        <div class="group-card list">
+          <button class="li link danger" id="pReset"><span>Reset balance and activity</span><i aria-hidden="true">›</i></button>
+          <button class="li link danger" id="pDelete"><span>Delete this account</span><i aria-hidden="true">›</i></button>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- ================= Sheets ================= -->
   <div class="backdrop" id="backdrop"></div>
-  <div class="sheet" id="confirmSheet" role="dialog" aria-modal="true">
+
+  <!-- Pay / receive / claim confirm -->
+  <div class="sheet" id="confirmSheet" role="dialog" aria-modal="true" aria-labelledby="cKind">
     <div class="grabber"></div>
     <div class="pay-head">
-      <div class="avatar lg" id="cAvatar">N</div>
+      <span class="avatar lg" id="cAvatar"></span>
       <div class="pay-kind" id="cKind">Pay to</div>
       <div class="pay-who" id="cWho"></div>
       <div class="pay-amount num" id="cAmount">€0.00</div>
@@ -101,22 +311,106 @@
     </div>
   </div>
 
-  <!-- Settings sheet -->
-  <div class="sheet" id="settingsSheet" role="dialog" aria-modal="true">
+  <!-- Send money to a person -->
+  <div class="sheet" id="sendSheet" role="dialog" aria-modal="true" aria-labelledby="sWho">
     <div class="grabber"></div>
-    <h3>Settings</h3>
-    <div class="field">
-      <label for="sName">Your name</label>
-      <input class="input" id="sName" maxlength="40" autocomplete="off">
+    <div class="pay-head">
+      <span class="avatar lg" id="sAvatar"></span>
+      <div class="pay-kind">Send money to</div>
+      <div class="pay-who" id="sWho"></div>
+      <div class="pay-user" id="sUser"></div>
     </div>
-    <div class="actions">
-      <button class="btn primary block" id="sSave">Save</button>
-      <button class="btn danger block" id="sReset">Reset wallet</button>
+    <div class="amount-wrap big" id="sAmountWrap">
+      <span class="cur">€</span>
+      <input id="sAmount" inputmode="decimal" placeholder="0.00" autocomplete="off" aria-label="Amount in euro">
+    </div>
+    <p class="help center" id="sBal"></p>
+    <div class="field">
+      <label for="sNote">Note <span class="opt">(optional)</span></label>
+      <input class="input" id="sNote" maxlength="60" placeholder="e.g. Pizza" autocomplete="off">
+    </div>
+    <div class="actions two">
+      <button class="btn ghost" id="sCancel">Cancel</button>
+      <button class="btn primary" id="sOk">Send</button>
     </div>
   </div>
 
-  <!-- Result -->
-  <div class="screen result" id="resultScreen" aria-hidden="true">
+  <!-- Request amount for my code -->
+  <div class="sheet" id="amountSheet" role="dialog" aria-modal="true" aria-labelledby="aTitle">
+    <div class="grabber"></div>
+    <h3 id="aTitle">Request an amount</h3>
+    <div class="amount-wrap big" id="aAmountWrap">
+      <span class="cur">€</span>
+      <input id="aAmount" inputmode="decimal" placeholder="0.00" autocomplete="off" aria-label="Amount in euro">
+    </div>
+    <div class="quick" id="aQuick">
+      <button data-q="2">€2</button><button data-q="5">€5</button><button data-q="10">€10</button><button data-q="20">€20</button>
+    </div>
+    <div class="field">
+      <label for="aNote">What's it for? <span class="opt">(optional)</span></label>
+      <input class="input" id="aNote" maxlength="60" placeholder="e.g. Cinema tickets" autocomplete="off">
+    </div>
+    <div class="actions two">
+      <button class="btn ghost" id="aClear">No amount</button>
+      <button class="btn primary" id="aOk">Show code</button>
+    </div>
+  </div>
+
+  <!-- Transaction details -->
+  <div class="sheet" id="txSheet" role="dialog" aria-modal="true" aria-labelledby="tWho">
+    <div class="grabber"></div>
+    <div class="pay-head">
+      <span class="avatar lg" id="tAvatar"></span>
+      <div class="pay-kind" id="tKind"></div>
+      <div class="pay-who" id="tWho"></div>
+      <div class="pay-amount num" id="tAmount"></div>
+      <div class="note-chip" id="tNote"></div>
+    </div>
+    <div class="rows" id="tRows"></div>
+    <div class="actions">
+      <button class="btn primary block" id="tClaim" hidden>Show claim code again</button>
+      <button class="btn ghost block" id="tClose">Close</button>
+    </div>
+  </div>
+
+  <!-- Change password -->
+  <div class="sheet" id="pwSheet" role="dialog" aria-modal="true" aria-labelledby="pwTitle">
+    <div class="grabber"></div>
+    <h3 id="pwTitle">Change password</h3>
+    <div class="field">
+      <label for="pwOld">Current password</label>
+      <input class="input" id="pwOld" type="password" autocomplete="current-password">
+    </div>
+    <div class="field">
+      <label for="pwNew">New password</label>
+      <input class="input" id="pwNew" type="password" autocomplete="new-password" aria-describedby="pwHelp">
+      <span class="help" id="pwHelp">At least 4 characters.</span>
+    </div>
+    <p class="form-error" id="pwErr" role="alert"></p>
+    <div class="actions two">
+      <button class="btn ghost" id="pwCancel">Cancel</button>
+      <button class="btn primary" id="pwOk">Change</button>
+    </div>
+  </div>
+
+  <!-- Delete account -->
+  <div class="sheet" id="delSheet" role="dialog" aria-modal="true" aria-labelledby="delTitle">
+    <div class="grabber"></div>
+    <h3 id="delTitle">Delete this account?</h3>
+    <p class="sheet-text">Your balance, activity and profile are removed from this phone. This can't be undone.</p>
+    <div class="field">
+      <label for="delPw">Type your password to confirm</label>
+      <input class="input" id="delPw" type="password" autocomplete="current-password">
+    </div>
+    <p class="form-error" id="delErr" role="alert"></p>
+    <div class="actions two">
+      <button class="btn ghost" id="delCancel">Cancel</button>
+      <button class="btn danger-solid" id="delOk">Delete</button>
+    </div>
+  </div>
+
+  <!-- ================= Result ================= -->
+  <div class="screen result" id="resultScreen" aria-hidden="true" role="dialog" aria-labelledby="rTitle">
     <div class="result-inner">
       <div class="result-body">
         <div class="check" id="rCheck">
@@ -128,6 +422,11 @@
         <div class="title" id="rTitle">Done</div>
         <div class="amount num" id="rAmount"></div>
         <div class="detail" id="rText"></div>
+        <div class="claim" id="rClaim" hidden>
+          <div class="qr-frame small"><div id="rQr"></div><div class="qr-logo"><span id="rLogo"></span></div></div>
+          <p class="claim-text" id="rClaimText"></p>
+          <button class="text-btn" id="rCopy">Copy link instead</button>
+        </div>
         <div class="rows receipt" id="rReceipt"></div>
       </div>
       <button class="btn primary block" id="rDone">Done</button>
@@ -135,7 +434,9 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
   <script src="js/common.js"></script>
+  <script src="js/accounts.js"></script>
   <script src="js/wallet.js"></script>
 </body>
 </html>

@@ -1,1 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="#07c160"/><path d="M150 370V142h52l108 146V142h52v228h-52L202 224v146z" fill="#fff"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="g1" cx="22%" cy="16%" r="70%"><stop offset="0" stop-color="#99e1d9" stop-opacity=".55"/><stop offset="1" stop-color="#99e1d9" stop-opacity="0"/></radialGradient>
+    <radialGradient id="g2" cx="90%" cy="95%" r="60%"><stop offset="0" stop-color="#7a5a6e" stop-opacity=".9"/><stop offset="1" stop-color="#7a5a6e" stop-opacity="0"/></radialGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".34"/><stop offset=".5" stop-color="#fff" stop-opacity=".12"/><stop offset="1" stop-color="#fff" stop-opacity=".06"/></linearGradient>
+    <linearGradient id="edge" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".7"/><stop offset="1" stop-color="#fff" stop-opacity=".08"/></linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="#32292f"/>
+  <rect width="512" height="512" rx="112" fill="url(#g1)"/>
+  <rect width="512" height="512" rx="112" fill="url(#g2)"/>
+  <rect x="96" y="96" width="320" height="320" rx="92" fill="url(#glass)" stroke="url(#edge)" stroke-width="4"/>
+  <path d="M176 344V168h42l78 108V168h40v176h-42l-78-108v108z" fill="#99e1d9"/>
+</svg>
