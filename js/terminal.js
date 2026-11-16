@@ -148,6 +148,16 @@
     NPay.store.set("npay.terminalName", who);
     const note = $("note").value.trim();
 
+    // Giving money spends your balance, so it needs your PIN (or Face ID).
+    if (mode === "get") {
+      let hasPin = true;
+      try { hasPin = await Backend.hasPin(); } catch {}
+      if (!hasPin) {
+        NPay.toast("Choose a PIN first — you'll use it to confirm payments");
+        if (!(await Lock.setup(me, { required: false }))) return;
+      } else if (!(await Lock.confirm(me, `Give ${NPay.money(amt)}`, "from your balance"))) return;
+    }
+
     const btn = $("makeBtn");
     btn.disabled = true;
     reset();

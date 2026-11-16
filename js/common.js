@@ -154,7 +154,8 @@ const NPay = (() => {
   }
 
   // Shrink a picked image to a 256×256 centre-cropped JPEG data URL (~20 KB).
-  async function imageToAvatar(file) {
+  // With `fit`, keep the whole picture instead, no side longer than `fit` pixels.
+  async function imageToAvatar(file, fit = 0) {
     if (!file || !file.type.startsWith("image/")) throw new Error("Pick an image file");
     const url = URL.createObjectURL(file);
     try {
@@ -164,6 +165,14 @@ const NPay = (() => {
         i.onerror = () => rej(new Error("Couldn't read that image"));
         i.src = url;
       });
+      if (fit) {
+        const k = Math.min(1, fit / Math.max(img.naturalWidth, img.naturalHeight));
+        const c = document.createElement("canvas");
+        c.width = Math.round(img.naturalWidth * k);
+        c.height = Math.round(img.naturalHeight * k);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        return c.toDataURL("image/jpeg", 0.9);
+      }
       const side = Math.min(img.naturalWidth, img.naturalHeight);
       const c = document.createElement("canvas");
       c.width = c.height = 256;

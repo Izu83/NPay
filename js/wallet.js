@@ -16,7 +16,8 @@
   let shownBalance = 0;
   let filter = "all";
   let hide = NPay.store.get("npay.hide", false);
-  let stopLive = null;
+  let friendsList = [];   // rows from my_friends(): friends and requests in/out
+  let chatWith = null;    // the friend whose chat is open
 
   const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -37,7 +38,25 @@
     renderHeader();
     renderBalance(false);
     renderHistory();
-    await reloadHistory();
+
+    // The PIN: choose one if there's none yet (or after "Forgot PIN"), otherwise ask for
+    // it, unless the password was typed in this tab a moment ago.
+    const fresh = sessionStorage.getItem("npay.fresh") === me.id;
+    const reset = sessionStorage.getItem("npay.resetPin") === "1";
+    sessionStorage.removeItem("npay.fresh");
+    sessionStorage.removeItem("npay.resetPin");
+    let hasPin = true;
+    try { hasPin = await Backend.hasPin(); } catch (err) { NPay.toast(err.message); }
+    if (!hasPin || reset) {
+      await Lock.setup(me, { required: true, reset });
+      NPay.toast(reset ? "New PIN saved" : "PIN saved");
+      await offerBio();
+    } else if (!fresh) {
+      await Lock.unlock(me, { onForgot: forgotPin });
+    }
+
+    reloadHistory();
+    refreshFriends();
     startLive();
 
     const pend = sessionStorage.getItem(PENDING);
@@ -45,9 +64,10 @@
   }
 
   function showAuth() {
-    stopLive?.();
-    stopLive = null;
+    Backend.unsubscribeAll();
     me = null;
+    friendsList = [];
+    Lock.hide();
     $("authView").hidden = false;
     $("appView").hidden = true;
     paintSignupAvatar();
@@ -65,8 +85,11 @@
 
   // Money arriving from someone else shows up straight away.
   function startLive() {
-    stopLive?.();
-    stopLive = Backend.onTransaction(async (row) => {
+    Backend.unsubscribeAll();
+    Backend.onMessage(onIncomingMessage);
+    Backend.onFriendship(() => refreshFriends(true));
+    Backend.onTransaction(async (row) => {
+      if (chatWith && row.other_id === chatWith.user_id && (row.kind === "send" || row.kind === "recv")) appendChatItem(paymentItem(row));
       if (history.some((t) => t.id === row.id)) return;
       history.unshift(row);
       await Backend.refreshBalance().catch(() => {});
@@ -151,6 +174,7 @@
     busy($("liBtn"), "Signing in…", async () => {
       try {
         await Backend.signIn(email, $("liPass").value);
+        sessionStorage.setItem("npay.fresh", Backend.me.id);
         $("liPass").value = "";
         await boot();
         NPay.toast(`Welcome back, ${me.name.split(" ")[0]}`);
@@ -178,6 +202,7 @@
     busy($("suBtn"), "Creating…", async () => {
       try {
         await Backend.signUp({ email, password, username, name, color: NPay.colorFor(username), avatar: suAvatar });
+        sessionStorage.setItem("npay.fresh", Backend.me.id);
         suAvatar = null;
         ["suName", "suUser", "suEmail", "suPass"].forEach((id) => ($(id).value = ""));
         delete $("suUser").dataset.touched;
@@ -374,6 +399,7 @@
   async function confirmPending() {
     const r = pending;
     if (!r) return;
+    if (r.kind === "pay" && !(await Lock.confirm(me, `Pay ${NPay.money(r.amount)}`, `to ${r.label}`))) return;
     const btn = $("cOk");
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span>Processing…';
@@ -401,6 +427,7 @@
   function startSend(req) {
     if (req.uid === me.id) return fail("That's your own code", "", "Scan someone else's code to send them money.");
     sendTo = req;
+    $("sFriend").hidden = true;
     NPay.paintAvatar($("sAvatar"), { name: req.n, color: req.c });
     $("sWho").textContent = req.n;
     $("sUser").textContent = "@" + req.u;
@@ -417,6 +444,7 @@
       if (sendTo !== req) return;
       if (!p) { closeSheet(); return fail("Account not found", "", "This person's account no longer exists."); }
       sendTo = { ...req, n: p.name, u: p.username, c: p.color };
+      friendChip($("sFriend"), p.id);
       NPay.paintAvatar($("sAvatar"), p);
       $("sWho").textContent = p.name;
       $("sUser").textContent = "@" + p.username;
@@ -436,6 +464,7 @@
     if (amt > me.balance) { shake($("sAmountWrap")); NPay.toast("Not enough money"); return; }
     const to = sendTo;
     const note = $("sNote").value.trim();
+    if (!(await Lock.confirm(me, `Send ${NPay.money(amt)}`, `to ${to.n}`))) return;
     const btn = $("sOk");
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span>Sending…';
@@ -506,6 +535,8 @@
     $("tNote").style.display = tx.note ? "" : "none";
     const rows = [["Date", new Date(tx.created_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })], ["Reference", tx.ref]];
     $("tRows").innerHTML = rows.map(([k, v]) => `<div class="row"><span>${k}</span><span class="num">${NPay.escapeHtml(v)}</span></div>`).join("");
+    $("tFriend").hidden = true;
+    if (tx.other_id && tx.other_id !== me.id) friendChip($("tFriend"), tx.other_id, true);
     openSheet("txSheet");
   }
   $("tClose").onclick = closeSheet;
@@ -642,29 +673,26 @@
   }
 
   // ================= Profile =================
-  let pColor = null;
-
   function renderProfile() {
-    NPay.paintAvatar($("pAvatar"), { ...me, color: pColor });
+    NPay.paintAvatar($("pAvatar"), me);
     $("pNameView").textContent = me.name;
     $("pUserView").textContent = "@" + me.username;
-    $("pRemovePhoto").hidden = !me.avatar;
     $("pUser").textContent = "@" + me.username;
     $("pEmail").textContent = me.email || "";
     $("pSince").textContent = new Date(me.created_at).toLocaleDateString(undefined, { month: "long", year: "numeric" });
     $("pCount").textContent = history.length >= 100 ? "100+" : history.length;
-    $("colorField").hidden = !!me.avatar;
-    $("swatches").innerHTML = NPay.COLORS.map((c) =>
-      `<button class="swatch ${c === pColor ? "on" : ""}" role="radio" aria-checked="${c === pColor}" aria-label="Colour ${c}" data-c="${c}" style="background:${c}"></button>`).join("");
-    $("swatches").querySelectorAll(".swatch").forEach((s) => (s.onclick = () => { pColor = s.dataset.c; renderProfile(); }));
     const theme = NPay.store.get("npay.theme", "system");
     const idx = ["system", "light", "dark"].indexOf(theme);
     $("themeSeg").dataset.mode = "abc"[idx];
     $("themeSeg").querySelectorAll("button").forEach((b, i) => { b.classList.toggle("on", i === idx); b.setAttribute("aria-checked", i === idx); });
+    Lock.bio.available().then((ok) => {
+      $("pBioRow").hidden = !ok;
+      $("pBioLabel").textContent = "Unlock with " + (Lock.bio.name === "Face ID" ? "Face ID" : "fingerprint / face");
+      $("pBio").checked = Lock.bio.enabled(me.id);
+    });
   }
 
   function openProfile() {
-    pColor = me.color;
     $("pName").value = me.name;
     renderProfile();
     openScreen("profileScreen");
@@ -685,23 +713,64 @@
   $("profileClose").onclick = () => closeScreen("profileScreen");
   $("pShowCode").onclick = () => { closeScreen("profileScreen"); openCode(); };
 
-  $("pPhoto").addEventListener("change", async (e) => {
-    const file = e.target.files[0];
-    e.target.value = "";
-    try { await saveProfile({ avatar: await NPay.imageToAvatar(file) }, "Photo updated"); } catch (err) { NPay.toast(err.message); }
-  });
-  $("pRemovePhoto").onclick = () => saveProfile({ avatar: null }, "Photo removed");
+  async function editPicture() {
+    const res = await AvatarEditor.open(me);
+    if (!res) return;
+    await saveProfile({ avatar: res.avatar, color: res.color || me.color }, res.avatar ? "Picture updated" : "Picture removed");
+  }
+  $("pEditPic").onclick = editPicture;
+  $("pEditPic2").onclick = editPicture;
 
   $("pSave").onclick = () => {
     const name = $("pName").value.trim();
     if (!name) { NPay.toast("Your name can't be empty"); $("pName").focus(); return; }
-    busy($("pSave"), "Saving…", () => saveProfile({ name, color: pColor }, "Saved"));
+    busy($("pSave"), "Saving…", () => saveProfile({ name }, "Saved"));
   };
 
   $("themeSeg").querySelectorAll("button").forEach((b) => {
     b.onclick = () => { NPay.store.set("npay.theme", b.dataset.themeOpt); NPay.applyTheme(); renderProfile(); };
   });
   matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => NPay.applyTheme());
+
+  // ---------- PIN & Face ID
+  async function forgotPin() {
+    const email = me?.email || "";
+    sessionStorage.setItem("npay.resetPin", "1");
+    await Backend.signOut();
+    showAuth();
+    setAuthTab("in");
+    $("liEmail").value = email;
+    authNote("Sign in with your password, then choose a new PIN.");
+  }
+
+  // After choosing a PIN, offer Face ID / fingerprint once.
+  async function offerBio() {
+    if (Lock.bio.enabled(me.id) || !(await Lock.bio.available())) return;
+    const label = Lock.bio.name === "Face ID" ? "Face ID" : "your fingerprint or face";
+    $("bioTitle").textContent = `Unlock with ${Lock.bio.name === "Face ID" ? "Face ID" : "fingerprint"}?`;
+    $("bioText").textContent = `Open NPay and confirm payments with ${label} instead of typing your PIN. Your PIN still works too.`;
+    openSheet("bioSheet");
+    await new Promise((resolve) => {
+      $("bioNo").onclick = () => { closeSheet(); resolve(); };
+      $("bioYes").onclick = async () => {
+        closeSheet();
+        try { await Lock.bio.enable(me); NPay.toast("Turned on"); } catch { NPay.toast("Couldn't turn it on — you can try again in your profile"); }
+        resolve();
+      };
+    });
+  }
+
+  $("pPin").onclick = async () => { if (await Lock.change(me)) NPay.toast("PIN changed"); };
+  $("pBio").onchange = async (e) => {
+    if (e.target.checked) {
+      try { await Lock.bio.enable(me); NPay.toast("Turned on"); }
+      catch { e.target.checked = false; NPay.toast("Couldn't turn it on"); }
+    } else {
+      Lock.bio.disable(me.id);
+      NPay.toast("Turned off");
+    }
+  };
+  $("pLock").onclick = () => { closeScreen("profileScreen"); Lock.unlock(me, { onForgot: forgotPin }); };
 
   $("pLogout").onclick = async () => {
     await Backend.signOut();
@@ -730,6 +799,253 @@
       NPay.toast("Account deleted");
     } catch (err) { $("delErr").textContent = err.message; }
   });
+
+  // ================= Friends =================
+  const relationOf = (uid) => friendsList.find((f) => f.user_id === uid) || null;
+
+  async function refreshFriends(fromLive) {
+    if (!me) return;
+    try { friendsList = await Backend.friends(); } catch { return; }
+    const incoming = friendsList.filter((f) => f.status === "incoming").length;
+    const unread = friendsList.reduce((n, f) => n + (f.status === "friends" ? f.unread : 0), 0);
+    const total = incoming + unread;
+    $("friendsBadge").hidden = !total;
+    $("friendsBadge").textContent = total > 9 ? "9+" : total;
+    $("friendsBtn").setAttribute("aria-label", total ? `Friends and chats, ${total} new` : "Friends and chats");
+    if (isOpen("friendsScreen")) { renderFriends(); if ($("frSearch").value.trim().length >= 2) runSearch(); }
+    if (fromLive && incoming && !isOpen("friendsScreen")) {
+      const newest = friendsList.find((f) => f.status === "incoming");
+      if (newest && !seenRequests.has(newest.friendship_id)) NPay.toast(`${newest.name} wants to be friends`);
+    }
+    friendsList.filter((f) => f.status === "incoming").forEach((f) => seenRequests.add(f.friendship_id));
+  }
+  const seenRequests = new Set();
+
+  // A button that adds / accepts / shows the friendship with someone.
+  function friendChip(btn, uid, block) {
+    const label = () => {
+      const f = relationOf(uid);
+      if (!f) return ["Add friend", false];
+      if (f.status === "incoming") return ["Accept friend request", false];
+      if (f.status === "outgoing") return ["Friend request sent", true];
+      return ["Message", false];
+    };
+    const paint = () => { const [t, dis] = label(); btn.textContent = t; btn.disabled = dis; btn.hidden = false; };
+    paint();
+    btn.onclick = async () => {
+      const f = relationOf(uid);
+      if (f?.status === "friends") { closeSheet(); openChat(f); return; }
+      btn.disabled = true;
+      try {
+        const res = await Backend.addFriend(uid);
+        await refreshFriends();
+        NPay.toast(res === "accepted" ? "You're now friends" : "Friend request sent");
+      } catch (err) { NPay.toast(err.message); }
+      paint();
+    };
+    if (block) btn.classList.toggle("primary", !relationOf(uid));
+  }
+
+  function timeAgo(ts) {
+    const d = new Date(ts), now = new Date();
+    if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+    const days = Math.round((now - d) / 864e5);
+    if (days < 7) return d.toLocaleDateString(undefined, { weekday: "short" });
+    return d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  }
+
+  function personRow(p, action) {
+    const row = document.createElement("div");
+    row.className = "li person";
+    row.innerHTML = `<span class="avatar sm"></span><span class="person-text"><b>${NPay.escapeHtml(p.name)}</b><small>@${NPay.escapeHtml(p.username)}</small></span><span class="person-actions"></span>`;
+    NPay.paintAvatar(row.querySelector(".avatar"), p);
+    action(row.querySelector(".person-actions"));
+    return row;
+  }
+  function smallBtn(label, cls, onclick) {
+    const b = document.createElement("button");
+    b.className = "btn small " + (cls || "");
+    b.textContent = label;
+    b.onclick = async () => { b.disabled = true; try { await onclick(); } catch (err) { NPay.toast(err.message); } b.disabled = false; };
+    return b;
+  }
+
+  function renderFriends() {
+    const reqs = friendsList.filter((f) => f.status !== "friends");
+    $("frRequestsWrap").hidden = !reqs.length;
+    $("frRequests").innerHTML = "";
+    reqs.forEach((f) => {
+      $("frRequests").appendChild(personRow(f, (box) => {
+        if (f.status === "incoming") {
+          box.append(
+            smallBtn("Decline", "ghost", async () => { await Backend.respondFriend(f.friendship_id, false); await refreshFriends(); }),
+            smallBtn("Accept", "primary", async () => { await Backend.respondFriend(f.friendship_id, true); await refreshFriends(); NPay.toast(`You and ${f.name} are friends now`); }));
+        } else {
+          box.append(smallBtn("Cancel", "ghost", async () => { await Backend.removeFriend(f.user_id); await refreshFriends(); NPay.toast("Request cancelled"); }));
+        }
+      }));
+    });
+
+    const friends = friendsList.filter((f) => f.status === "friends");
+    $("frList").innerHTML = "";
+    if (!friends.length) {
+      $("frList").innerHTML = '<div class="empty"><b>No friends yet.</b><br>Search for a username above, or tap <i>Add friend</i> after scanning someone\'s code.</div>';
+      return;
+    }
+    friends.forEach((f) => {
+      const row = document.createElement("button");
+      row.className = "li chat-row" + (f.unread ? " unread" : "");
+      const preview = f.last_body ? (f.last_from_me ? "You: " : "") + f.last_body : "Say hi 👋";
+      row.innerHTML = `<span class="avatar"></span>
+        <span class="person-text"><b>${NPay.escapeHtml(f.name)}</b><small>${NPay.escapeHtml(preview)}</small></span>
+        <span class="chat-meta"><small>${f.last_body ? timeAgo(f.last_at) : ""}</small>${f.unread ? `<span class="badge">${f.unread > 9 ? "9+" : f.unread}</span>` : ""}</span>`;
+      NPay.paintAvatar(row.querySelector(".avatar"), f);
+      row.onclick = () => openChat(f);
+      $("frList").appendChild(row);
+    });
+  }
+
+  let searchTimer = null, searchSeq = 0;
+  async function runSearch() {
+    const q = $("frSearch").value.trim().replace(/^@/, "").toLowerCase();
+    if (q.length < 2) { $("frResultsWrap").hidden = true; return; }
+    const seq = ++searchSeq;
+    let rows;
+    try { rows = await Backend.searchUsers(q); } catch (err) { NPay.toast(err.message); return; }
+    if (seq !== searchSeq) return;
+    $("frResultsWrap").hidden = false;
+    $("frResults").innerHTML = "";
+    if (!rows.length) { $("frResults").innerHTML = `<div class="empty">Nobody called @${NPay.escapeHtml(q)}…</div>`; return; }
+    rows.forEach((p) => {
+      $("frResults").appendChild(personRow(p, (box) => {
+        const f = relationOf(p.id);
+        if (f?.status === "friends") box.append(smallBtn("Message", "", async () => openChat(f)));
+        else if (f?.status === "outgoing") box.append(smallBtn("Requested", "ghost", async () => {}));
+        else box.append(smallBtn(f?.status === "incoming" ? "Accept" : "Add", "primary", async () => {
+          const res = await Backend.addFriend(p.id);
+          await refreshFriends();
+          NPay.toast(res === "accepted" ? `You and ${p.name} are friends now` : "Friend request sent");
+        }));
+      }));
+    });
+  }
+  $("frSearch").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(runSearch, 250); });
+
+  $("friendsBtn").onclick = () => { renderFriends(); openScreen("friendsScreen"); refreshFriends(); };
+  $("frClose").onclick = () => closeScreen("friendsScreen");
+
+  // ================= Chat =================
+  let chatItems = [];
+
+  const paymentItem = (t) => ({ type: "pay", id: "t" + t.id, at: t.created_at, mine: t.amount < 0, amount: Math.abs(t.amount), note: t.note });
+  const messageItem = (m) => ({ type: "msg", id: "m" + m.id, at: m.created_at, mine: m.sender_id === me.id, body: m.body });
+
+  async function openChat(f) {
+    chatWith = f;
+    NPay.paintAvatar($("chAvatar"), f);
+    $("chName").textContent = f.name;
+    $("chUser").textContent = "@" + f.username;
+    $("chLog").innerHTML = '<div class="empty">Loading…</div>';
+    $("chInput").value = "";
+    openScreen("chatScreen");
+    try {
+      const [msgs, pays] = await Promise.all([Backend.messages(f.user_id), Backend.paymentsWith(f.user_id)]);
+      if (chatWith !== f) return;
+      chatItems = [...msgs.map(messageItem), ...pays.map(paymentItem)].sort((a, b) => new Date(a.at) - new Date(b.at));
+      renderChat();
+    } catch (err) {
+      $("chLog").innerHTML = `<div class="empty">${NPay.escapeHtml(err.message)}</div>`;
+    }
+    if (f.unread) { await Backend.markRead(f.user_id); refreshFriends(); }
+    if (matchMedia("(pointer: fine)").matches) $("chInput").focus();
+  }
+
+  function closeChat() {
+    chatWith = null;
+    closeScreen("chatScreen");
+    refreshFriends();
+  }
+
+  function itemHtml(it) {
+    if (it.type === "pay") {
+      const who = it.mine ? `You sent ${chatWith.name.split(" ")[0]}` : `${chatWith.name.split(" ")[0]} sent you`;
+      return `<div class="pay-bubble ${it.mine ? "" : "in"}"><span>${NPay.escapeHtml(who)}</span><b class="num">${NPay.money(it.amount)}</b>${it.note ? `<small>${NPay.escapeHtml(it.note)}</small>` : ""}</div>`;
+    }
+    const time = new Date(it.at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+    return `<div class="msg ${it.mine ? "me" : "them"}${it.failed ? " failed" : ""}"><p>${NPay.escapeHtml(it.body)}</p><time>${it.failed ? "Not sent" : time}</time></div>`;
+  }
+
+  function renderChat() {
+    if (!chatItems.length) {
+      $("chLog").innerHTML = `<div class="empty chat-empty"><span class="avatar xl"></span><b>${NPay.escapeHtml(chatWith.name)}</b><br>You're friends. Say hi, or send some money.</div>`;
+      NPay.paintAvatar($("chLog").querySelector(".avatar"), chatWith);
+      return;
+    }
+    let lastDay = "";
+    $("chLog").innerHTML = chatItems.map((it) => {
+      const day = dayLabel(it.at);
+      const sep = day !== lastDay ? `<div class="chat-day">${day}</div>` : "";
+      lastDay = day;
+      return sep + itemHtml(it);
+    }).join("");
+    $("chLog").scrollTop = $("chLog").scrollHeight;
+  }
+
+  function appendChatItem(it) {
+    if (chatItems.some((x) => x.id === it.id)) return;
+    chatItems.push(it);
+    renderChat();
+  }
+
+  function onIncomingMessage(m) {
+    if (chatWith && m.sender_id === chatWith.user_id && isOpen("chatScreen")) {
+      appendChatItem(messageItem(m));
+      Backend.markRead(chatWith.user_id);
+      return;
+    }
+    const f = relationOf(m.sender_id);
+    NPay.toast(`${f ? f.name.split(" ")[0] : "New message"}: ${m.body.slice(0, 60)}`);
+    if (navigator.vibrate) navigator.vibrate(20);
+    refreshFriends();
+  }
+
+  $("chForm").onsubmit = async (e) => {
+    e.preventDefault();
+    const body = $("chInput").value.trim();
+    if (!body || !chatWith) return;
+    $("chInput").value = "";
+    const temp = { type: "msg", id: "tmp" + Date.now(), at: new Date().toISOString(), mine: true, body };
+    appendChatItem(temp);
+    try {
+      const m = await Backend.sendMessage(chatWith.user_id, body);
+      Object.assign(temp, messageItem(m));
+    } catch (err) {
+      temp.failed = true;
+      NPay.toast(err.message);
+    }
+    renderChat();
+  };
+
+  function payFriend() {
+    const f = chatWith;
+    closeSheet();
+    startSend({ t: "user", uid: f.user_id, u: f.username, n: f.name, c: f.color });
+  }
+  $("chPay").onclick = payFriend;
+  $("chClose").onclick = closeChat;
+  $("chMenu").onclick = () => { $("csTitle").textContent = chatWith.name; openSheet("chatSheet"); };
+  $("csPay").onclick = payFriend;
+  $("csClose").onclick = closeSheet;
+  $("csRemove").onclick = async () => {
+    const f = chatWith;
+    if (!confirm(`Remove ${f.name} from your friends? You won't be able to message each other.`)) return;
+    try {
+      await Backend.removeFriend(f.user_id);
+      closeSheet();
+      closeChat();
+      NPay.toast(`${f.name} removed`);
+    } catch (err) { NPay.toast(err.message); }
+  };
 
   // ================= Camera scanner =================
   let stream = null;
@@ -840,16 +1156,24 @@
   $("eyeBtn").onclick = () => { hide = !hide; NPay.store.set("npay.hide", hide); renderHeader(); };
 
   document.addEventListener("keydown", (e) => {
-    if (e.key !== "Escape") return;
+    if (e.key !== "Escape" || Lock.isOpen()) return;
     if (openSheetId) closeSheet();
     else if (isOpen("scanScreen")) stopScan();
     else if (isOpen("codeScreen")) closeScreen("codeScreen");
+    else if (isOpen("chatScreen")) closeChat();
+    else if (isOpen("friendsScreen")) closeScreen("friendsScreen");
     else if (isOpen("profileScreen")) closeScreen("profileScreen");
   });
 
   // Catch up when the app comes back to the front (live updates pause in the background).
+  let hiddenAt = 0;
   document.addEventListener("visibilitychange", async () => {
-    if (document.hidden || !me) return;
+    if (document.hidden) { hiddenAt = Date.now(); return; }
+    if (!me) return;
+    // Away for more than a minute: ask for the PIN again.
+    if (hiddenAt && Date.now() - hiddenAt > 60_000 && !Lock.isOpen()) Lock.unlock(me, { onForgot: forgotPin });
+    hiddenAt = 0;
+    refreshFriends();
     renderHeader();
     try { await Backend.refreshBalance(); } catch {}
     if (me.balance !== shownBalance) renderBalance(true);

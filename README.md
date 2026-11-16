@@ -35,7 +35,8 @@ Accounts, balances and payments live in a free [Supabase](https://supabase.com) 
 
 ### One-time setup
 
-1. **Create the tables.** Either let the Supabase GitHub integration deploy `supabase/migrations/` (turn on *Deploy to production* in the integration), or open **SQL Editor** in Supabase, paste the whole file `supabase/migrations/20261116000000_npay_accounts.sql` and press **Run**. Running it twice is harmless.
+1. **Create the tables.** Open **SQL Editor** in Supabase and run each file in `supabase/migrations/`, oldest first:
+   `20261116000000_npay_accounts.sql`, then `20261117000000_npay_pin_friends_chat.sql`. Running one twice is harmless.
 2. **Turn off email confirmation** (recommended): **Authentication → Sign In / Providers → Email → Confirm email** off. With it on, people must click a link in an email before they can sign in, and Supabase's built-in email only sends a few emails per hour.
 3. **Connect the site** with your **Project URL** and **anon public key** (Project Settings → API). Either:
    - put them in `js/config.js`, or
@@ -46,7 +47,9 @@ Accounts, balances and payments live in a free [Supabase](https://supabase.com) 
 ### What you can do
 
 - **Create an account** with name, username, email, password and an optional photo. Every new account starts with €100.00 of play money.
-- **Profile** (tap your picture): photo, name, avatar colour, theme, change password, sign out, delete account.
+- **Profile** (tap your picture): edit your picture (a photo you can zoom and move, an emoji, or initials, on any background colour, optionally blended with a second one), name, theme, PIN, Face ID, password, sign out, delete account.
+- **PIN & Face ID**: everyone chooses a 4-digit PIN. It opens the app (again after a minute in the background) and confirms every payment. Face ID / fingerprint can be turned on per device. The PIN is checked by the database: 5 wrong tries lock it for 5 minutes. Forgot it? Sign in with your password and choose a new one.
+- **Friends & chat**: find people by username (or tap *Add friend* after scanning their code), accept requests, and chat live. Payments between you show up in the chat, and you can send money from there.
 - **My code**: your own QR code. Anyone who scans it with NPay can send you money, which arrives instantly. *Request an amount* puts a fixed amount in the code; *Save image* downloads a card with it.
 - **Terminal** (`terminal.html`): sign in with the same account. *Charge* codes are paid into your account, *Give money* codes are paid from it. The screen shows **Paid by …** the moment the phone pays, plus today's sales.
 
@@ -62,7 +65,9 @@ terminal.html         computer terminal (shows the QR codes)
 css/style.css         styles (light + dark mode)
 js/config.js          Supabase URL + anon key
 js/common.js          QR payload format + shared helpers (QR drawing, theme)
-js/backend.js         Supabase calls: accounts, payments, live updates
+js/backend.js         Supabase calls: accounts, payments, PIN, friends, chat, live updates
+js/lock.js            PIN pad and Face ID (shared by wallet and terminal)
+js/avatar.js          picture editor
 js/wallet.js          wallet logic, camera scanner, profile, my code
 js/terminal.js        terminal logic + QR generation
 manifest.webmanifest  "Add to Home Screen" support

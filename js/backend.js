@@ -18,6 +18,7 @@ const Backend = (() => {
     "NPAY:no_account": "That account no longer exists",
     "NPAY:bad_amount": "Enter an amount, like 4.50",
     "NPAY:signed_out": "You're signed out — sign in again",
+    "row-level security policy for table \"messages\"": "You can only message friends",
     "Invalid login credentials": "Wrong email or password",
     "Email not confirmed": "Confirm your email first (check your inbox), then sign in",
     "User already registered": "There's already an account with this email",
@@ -120,6 +121,27 @@ const Backend = (() => {
   const getRequest = async (id) => (await run(sb.rpc("get_request", { p_id: id })))[0] || null;
   const settleRequest = async (id) => (me.balance = await run(sb.rpc("settle_request", { p_id: id })));
 
+  // ---- PIN (checked on the server; 5 wrong tries lock it for 5 minutes)
+  const hasPin = () => run(sb.rpc("has_pin"));
+  const verifyPin = (pin) => run(sb.rpc("verify_pin", { p_pin: pin }));
+  const setPin = (pin, oldPin) => run(sb.rpc("set_pin", { p_new: pin, p_old: oldPin ?? null }));
+
+  // ---- friends & chat
+  const friends = () => run(sb.rpc("my_friends"));
+  const searchUsers = (q) =>
+    run(sb.from("profiles").select("id, username, name, color, avatar").ilike("username", q.replace(/[%_\\]/g, "") + "%").neq("id", me.id).order("username").limit(10));
+  const addFriend = (id) => run(sb.rpc("add_friend", { p_user: id }));
+  const respondFriend = (friendshipId, accept) => run(sb.rpc("respond_friend", { p_id: friendshipId, p_accept: accept }));
+  const removeFriend = (id) => run(sb.rpc("remove_friend", { p_user: id }));
+  const messages = async (other, limit = 60) =>
+    (await run(sb.from("messages").select("*")
+      .or(`and(sender_id.eq.${me.id},recipient_id.eq.${other}),and(sender_id.eq.${other},recipient_id.eq.${me.id})`)
+      .order("created_at", { ascending: false }).limit(limit))).reverse();
+  const sendMessage = (to, body) => run(sb.from("messages").insert({ recipient_id: to, body }).select().single());
+  const markRead = (other) => run(sb.rpc("mark_read", { p_other: other })).catch(() => {});
+  const paymentsWith = (other) =>
+    run(sb.from("transactions").select("*").eq("other_id", other).in("kind", ["send", "recv"]).order("created_at", { ascending: false }).limit(60));
+
   // ---- live updates
   const channels = new Set();
   function listen(name, filter, cb) {
@@ -135,6 +157,10 @@ const Backend = (() => {
   }
   // Every new line in your history (money in or out), as it happens.
   const onTransaction = (cb) => listen("tx", { event: "INSERT", schema: "public", table: "transactions", filter: `user_id=eq.${me.id}` }, cb);
+  // New chat messages sent to you.
+  const onMessage = (cb) => listen("msg", { event: "INSERT", schema: "public", table: "messages", filter: `recipient_id=eq.${me.id}` }, cb);
+  // Any change to your friend requests or friends (row-level security limits it to yours).
+  const onFriendship = (cb) => listen("fr", { event: "*", schema: "public", table: "friendships" }, cb);
   // A terminal waiting for its code to be paid.
   const watchRequest = (id, cb) => listen("req", { event: "UPDATE", schema: "public", table: "payment_requests", filter: `id=eq.${id}` }, cb);
 
@@ -144,6 +170,8 @@ const Backend = (() => {
     configured, get me() { return me; },
     loadMe, refreshBalance, signUp, signIn, signOut, updateProfile, changePassword, deleteAccount,
     history, getProfile, sendMoney, createRequest, cancelRequest, getRequest, settleRequest,
-    onTransaction, watchRequest, onAuthChange, unsubscribeAll,
+    hasPin, verifyPin, setPin,
+    friends, searchUsers, addFriend, respondFriend, removeFriend, messages, sendMessage, markRead, paymentsWith,
+    onTransaction, onMessage, onFriendship, watchRequest, onAuthChange, unsubscribeAll,
   };
 })();

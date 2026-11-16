@@ -1,7 +1,7 @@
 // NPay service worker: network first, so a new deploy shows up right away;
 // the cached copy is only used when the phone is offline.
-const CACHE = "npay-v3";
-const SHELL = ["./", "index.html", "terminal.html", "css/style.css", "js/config.js", "js/common.js", "js/backend.js", "js/wallet.js", "js/terminal.js", "icon.svg", "icon-192.png", "manifest.webmanifest"];
+const CACHE = "npay-v4";
+const SHELL = ["./", "index.html", "terminal.html", "css/style.css", "js/config.js", "js/common.js", "js/backend.js", "js/lock.js", "js/avatar.js", "js/wallet.js", "js/terminal.js", "icon.svg", "icon-192.png", "manifest.webmanifest"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
