@@ -29,12 +29,12 @@
       <h1 class="auth-title rise d1">Pay with a scan.</h1>
       <p class="auth-lede rise d1">Scan a code to pay, show yours to get paid. Every new account starts with €100.00 of play money.</p>
 
-      <section class="saved rise d2" id="savedWrap" hidden>
-        <h2 class="group-title">On this phone</h2>
-        <div class="saved-list" id="savedList"></div>
+      <section class="setup rise d2" id="setupNote" hidden>
+        <h2>NPay isn't connected yet</h2>
+        <p>The database connection is missing. Add the Supabase URL and anon key to <code>js/config.js</code> (or the GitHub Actions variables), then reload.</p>
       </section>
 
-      <div class="auth-card rise d2">
+      <div class="auth-card rise d2" id="authCard">
         <div class="segmented" id="authSeg" data-mode="a" role="tablist" aria-label="Sign in or create an account">
           <span class="thumb"></span>
           <button type="button" id="tabIn" class="on" role="tab" aria-selected="true" aria-controls="loginForm">Sign in</button>
@@ -43,8 +43,8 @@
 
         <form id="loginForm" class="auth-form" novalidate>
           <div class="field">
-            <label for="liUser">Username</label>
-            <div class="input-wrap"><span class="at">@</span><input class="input" id="liUser" autocomplete="username" autocapitalize="none" spellcheck="false" required></div>
+            <label for="liEmail">Email</label>
+            <input class="input" id="liEmail" type="email" inputmode="email" autocomplete="email" autocapitalize="none" spellcheck="false" required>
           </div>
           <div class="field">
             <label for="liPass">Password</label>
@@ -79,19 +79,25 @@
             <span class="help" id="suUserHelp">3–20 letters, numbers, dots or underscores.</span>
           </div>
           <div class="field">
+            <label for="suEmail">Email</label>
+            <input class="input" id="suEmail" type="email" inputmode="email" autocomplete="email" autocapitalize="none" spellcheck="false" aria-describedby="suEmailHelp" required>
+            <span class="help" id="suEmailHelp">Used to sign in on any device. Never shown to others.</span>
+          </div>
+          <div class="field">
             <label for="suPass">Password</label>
             <div class="input-wrap">
               <input class="input" id="suPass" type="password" autocomplete="new-password" aria-describedby="suPassHelp" required>
               <button type="button" class="reveal" data-reveal="suPass" aria-label="Show password">Show</button>
             </div>
-            <span class="help" id="suPassHelp">At least 4 characters.</span>
+            <span class="help" id="suPassHelp">At least 6 characters.</span>
           </div>
           <p class="form-error" id="suErr" role="alert"></p>
           <button class="btn primary block" type="submit" id="suBtn">Create account</button>
         </form>
       </div>
 
-      <p class="fine rise d3">Accounts are kept in this browser only. NPay uses pretend euros — it's for fun and demos, not real money.</p>
+      <p class="form-note" id="authNote" role="status" hidden></p>
+      <p class="fine rise d3">Sign in on any phone or computer. NPay uses pretend euros — it's for fun and demos, not real money.</p>
       <a class="text-link rise d3" href="terminal.html">Open the shop terminal instead</a>
     </div>
   </div>
@@ -251,6 +257,7 @@
         <h3 class="group-title">Your account</h3>
         <div class="group-card list">
           <div class="li"><span>Username</span><b id="pUser"></b></div>
+          <div class="li"><span>Email</span><b id="pEmail"></b></div>
           <div class="li"><span>Member since</span><b id="pSince"></b></div>
           <div class="li"><span>Payments</span><b class="num" id="pCount"></b></div>
           <button class="li link" id="pShowCode"><span>Show my QR code</span><i aria-hidden="true">›</i></button>
@@ -273,7 +280,6 @@
         <h3 class="group-title">Security</h3>
         <div class="group-card list">
           <button class="li link" id="pPassword"><span>Change password</span><i aria-hidden="true">›</i></button>
-          <button class="li link" id="pSwitch"><span>Switch account</span><i aria-hidden="true">›</i></button>
           <button class="li link" id="pLogout"><span>Sign out</span><i aria-hidden="true">›</i></button>
         </div>
       </section>
@@ -281,7 +287,6 @@
       <section class="group">
         <h3 class="group-title">Danger zone</h3>
         <div class="group-card list">
-          <button class="li link danger" id="pReset"><span>Reset balance and activity</span><i aria-hidden="true">›</i></button>
           <button class="li link danger" id="pDelete"><span>Delete this account</span><i aria-hidden="true">›</i></button>
         </div>
       </section>
@@ -368,7 +373,6 @@
     </div>
     <div class="rows" id="tRows"></div>
     <div class="actions">
-      <button class="btn primary block" id="tClaim" hidden>Show claim code again</button>
       <button class="btn ghost block" id="tClose">Close</button>
     </div>
   </div>
@@ -384,7 +388,7 @@
     <div class="field">
       <label for="pwNew">New password</label>
       <input class="input" id="pwNew" type="password" autocomplete="new-password" aria-describedby="pwHelp">
-      <span class="help" id="pwHelp">At least 4 characters.</span>
+      <span class="help" id="pwHelp">At least 6 characters.</span>
     </div>
     <p class="form-error" id="pwErr" role="alert"></p>
     <div class="actions two">
@@ -397,7 +401,7 @@
   <div class="sheet" id="delSheet" role="dialog" aria-modal="true" aria-labelledby="delTitle">
     <div class="grabber"></div>
     <h3 id="delTitle">Delete this account?</h3>
-    <p class="sheet-text">Your balance, activity and profile are removed from this phone. This can't be undone.</p>
+    <p class="sheet-text">Your account, balance and activity are deleted for good, on every device. This can't be undone.</p>
     <div class="field">
       <label for="delPw">Type your password to confirm</label>
       <input class="input" id="delPw" type="password" autocomplete="current-password">
@@ -422,11 +426,6 @@
         <div class="title" id="rTitle">Done</div>
         <div class="amount num" id="rAmount"></div>
         <div class="detail" id="rText"></div>
-        <div class="claim" id="rClaim" hidden>
-          <div class="qr-frame small"><div id="rQr"></div><div class="qr-logo"><span id="rLogo"></span></div></div>
-          <p class="claim-text" id="rClaimText"></p>
-          <button class="text-btn" id="rCopy">Copy link instead</button>
-        </div>
         <div class="rows receipt" id="rReceipt"></div>
       </div>
       <button class="btn primary block" id="rDone">Done</button>
@@ -435,8 +434,10 @@
 
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"></script>
+  <script src="js/config.js"></script>
   <script src="js/common.js"></script>
-  <script src="js/accounts.js"></script>
+  <script src="js/backend.js"></script>
   <script src="js/wallet.js"></script>
 </body>
 </html>

@@ -16,63 +16,104 @@
   <main class="terminal">
     <header class="topbar rise">
       <div class="logo">
-        <span class="logo-mark"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 20V4h3.6l6.8 9.6V4H19v16h-3.6L8.6 10.4V20z"/></svg></span>
+        <span class="logo-mark"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 20V4h3.6l6.8 9.6V4H19v16h-3.6L8.6 10.4V20z"/></svg></span>
         NPay Terminal
       </div>
-      <a class="link-btn" href="./">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/></svg>
-        Wallet
-      </a>
+      <div class="term-account">
+        <div class="term-me" id="termMe" hidden>
+          <span class="avatar sm" id="tmAvatar"></span>
+          <span class="me-text"><span class="name" id="tmName"></span><span class="sub num" id="tmBalance"></span></span>
+          <button class="text-btn" id="tmSignOut">Sign out</button>
+        </div>
+        <a class="link-btn" href="./">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/></svg>
+          Wallet
+        </a>
+      </div>
     </header>
 
-    <div class="term-grid">
-      <section class="panel rise d1">
-        <h1 class="term-title">Take or give a payment</h1>
-        <div class="segmented" id="seg" data-mode="pay" role="tablist">
-          <span class="thumb"></span>
-          <button id="modePay" class="on" role="tab" aria-selected="true">Charge</button>
-          <button id="modeGet" role="tab" aria-selected="false">Give money</button>
-        </div>
-        <p class="mode-help" id="modeHelp">The phone that scans pays this amount.</p>
-
+    <!-- Signed out -->
+    <section class="panel term-signin rise d1" id="termSignin" hidden>
+      <h1 class="term-title">Sign in to take payments</h1>
+      <p class="term-lede">Charges go into your NPay account. Money you give comes out of it.</p>
+      <p class="setup-inline" id="termSetup" hidden>NPay isn't connected to its database yet. Add the Supabase URL and anon key to <code>js/config.js</code>, then reload.</p>
+      <form id="tsForm" novalidate>
         <div class="field">
-          <label for="amount">Amount</label>
-          <div class="amount-wrap" id="amountWrap">
-            <span class="cur">€</span>
-            <input id="amount" inputmode="decimal" placeholder="0.00" autocomplete="off" aria-label="Amount in euro">
+          <label for="tsEmail">Email</label>
+          <input class="input" id="tsEmail" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" required>
+        </div>
+        <div class="field">
+          <label for="tsPass">Password</label>
+          <input class="input" id="tsPass" type="password" autocomplete="current-password" required>
+        </div>
+        <p class="form-error" id="tsErr" role="alert"></p>
+        <button class="btn primary block" type="submit" id="tsBtn">Sign in</button>
+      </form>
+      <p class="fine">No account yet? <a class="text-link inline" href="./">Create one in the wallet</a> — it works on a computer too.</p>
+    </section>
+
+    <!-- Signed in -->
+    <div class="term-grid" id="termGrid" hidden>
+      <div class="term-left">
+        <section class="panel rise d1">
+          <h1 class="term-title">Take or give a payment</h1>
+          <div class="segmented" id="seg" data-mode="pay" role="tablist">
+            <span class="thumb"></span>
+            <button id="modePay" class="on" role="tab" aria-selected="true">Charge</button>
+            <button id="modeGet" role="tab" aria-selected="false">Give money</button>
           </div>
-        </div>
-        <div class="quick">
-          <button data-q="1">€1</button>
-          <button data-q="5">€5</button>
-          <button data-q="10">€10</button>
-          <button data-q="20">€20</button>
-        </div>
-        <div class="field">
-          <label for="note">Note <span style="font-weight:500">(optional)</span></label>
-          <input class="input" id="note" maxlength="60" placeholder="e.g. Coffee" autocomplete="off">
-        </div>
-        <div class="field">
-          <label for="who">Terminal name</label>
-          <input class="input" id="who" maxlength="40" autocomplete="off">
-        </div>
-        <button class="btn primary block" id="makeBtn" style="margin-top:6px">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/></svg>
-          Show QR code
-        </button>
-      </section>
+          <p class="mode-help" id="modeHelp">The phone that scans pays you this amount.</p>
 
-      <section class="panel qr-stage rise d2" id="stage">
+          <div class="field">
+            <label for="amount">Amount</label>
+            <div class="amount-wrap" id="amountWrap">
+              <span class="cur">€</span>
+              <input id="amount" inputmode="decimal" placeholder="0.00" autocomplete="off" aria-label="Amount in euro">
+            </div>
+          </div>
+          <div class="quick">
+            <button data-q="1">€1</button>
+            <button data-q="5">€5</button>
+            <button data-q="10">€10</button>
+            <button data-q="20">€20</button>
+          </div>
+          <div class="field">
+            <label for="note">Note <span class="opt">(optional)</span></label>
+            <input class="input" id="note" maxlength="60" placeholder="e.g. Coffee" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="who">Shop name</label>
+            <input class="input" id="who" maxlength="40" autocomplete="off">
+          </div>
+          <button class="btn primary block" id="makeBtn" style="margin-top:6px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/></svg>
+            Show QR code
+          </button>
+        </section>
+
+        <section class="panel rise d2" aria-labelledby="salesTitle">
+          <div class="panel-head">
+            <h2 id="salesTitle">Today at this terminal</h2>
+            <span class="num sales-total" id="salesTotal"></span>
+          </div>
+          <div id="sales"></div>
+        </section>
+      </div>
+
+      <section class="panel qr-stage rise d2" id="stage" aria-live="polite">
         <div class="stage-empty">
           <div class="ghost-qr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/></svg></div>
-          Enter an amount and press <b>Show QR code</b>.<br>Then scan it with the NPay wallet on your phone.
+          Enter an amount and press <b>Show QR code</b>.<br>When a phone pays, you'll see it here straight away.
         </div>
       </section>
     </div>
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"></script>
+  <script src="js/config.js"></script>
   <script src="js/common.js"></script>
+  <script src="js/backend.js"></script>
   <script src="js/terminal.js"></script>
 </body>
 </html>

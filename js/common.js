@@ -5,15 +5,13 @@
 //
 // Payload (JSON, base64url encoded), always { v: 1, t: <type>, ... }:
 //
-//   t: "pay"   terminal charge   -> the scanner PAYS   { id, amt, who, note?, exp }
-//   t: "get"   terminal payout   -> the scanner GETS   { id, amt, who, note?, exp }
+//   t: "req"   a terminal's code: { id } of a payment request in the database.
+//              The amount and who it's for are read from the database, not the QR.
 //   t: "user"  an account's own code (send money to them)
 //              { uid, u: username, n: name, c: avatar colour, amt?, note? }
-//   t: "xfer"  a claim code made after sending money to someone;
-//              only the account it is addressed to can take it
-//              { id, amt, who: sender name, fu: sender username, to: recipient uid, note?, exp }
 //
-// amt is always in cents (integer).
+// Codes from the old offline version ("pay", "get", "xfer") are still recognised so the
+// wallet can say they no longer work. amt is always in cents (integer).
 
 const NPay = (() => {
   const CURRENCY = "EUR";
@@ -53,6 +51,7 @@ const NPay = (() => {
     try {
       const o = JSON.parse(fromB64Url(encoded));
       if (o.v !== 1) return null;
+      if (o.t === "req") return isStr(o.id) ? o : null;
       if (o.t === "pay" || o.t === "get") return isAmt(o.amt) && isStr(o.id) && isStr(o.who) ? o : null;
       if (o.t === "user") return isStr(o.uid) && isStr(o.u) && isStr(o.n) && (o.amt === undefined || isAmt(o.amt)) ? o : null;
       if (o.t === "xfer") return isAmt(o.amt) && isStr(o.id) && isStr(o.who) && isStr(o.to) ? o : null;
@@ -138,7 +137,8 @@ const NPay = (() => {
   }
 
   // Fill an element with a profile picture, or initials on a coloured disc.
-  function paintAvatar(el, { name = "", pfp = null, color = null } = {}) {
+  function paintAvatar(el, { name = "", pfp = null, avatar = null, color = null } = {}) {
+    pfp = pfp || avatar;
     el.classList.add("avatar");
     el.style.background = pfp ? "" : color || colorFor(name);
     el.style.color = pfp ? "" : "#fff";
@@ -150,6 +150,27 @@ const NPay = (() => {
       el.appendChild(img);
     } else {
       el.textContent = initials(name);
+    }
+  }
+
+  // Shrink a picked image to a 256×256 centre-cropped JPEG data URL (~20 KB).
+  async function imageToAvatar(file) {
+    if (!file || !file.type.startsWith("image/")) throw new Error("Pick an image file");
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((res, rej) => {
+        const i = new Image();
+        i.onload = () => res(i);
+        i.onerror = () => rej(new Error("Couldn't read that image"));
+        i.src = url;
+      });
+      const side = Math.min(img.naturalWidth, img.naturalHeight);
+      const c = document.createElement("canvas");
+      c.width = c.height = 256;
+      c.getContext("2d").drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, 256, 256);
+      return c.toDataURL("image/jpeg", 0.85);
+    } finally {
+      URL.revokeObjectURL(url);
     }
   }
 
@@ -225,7 +246,7 @@ const NPay = (() => {
   applyTheme();
 
   return {
-    CURRENCY, COLORS, newId, initials, colorFor, paintAvatar, animateMoney, toast,
+    CURRENCY, COLORS, newId, initials, colorFor, paintAvatar, imageToAvatar, animateMoney, toast,
     encodeRequest, decodeRequest, parseScanned, walletUrl, linkFor, money, parseAmount,
     store, escapeHtml, drawQr, applyTheme,
   };

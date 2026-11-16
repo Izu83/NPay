@@ -2,7 +2,7 @@
 
 A small QR-code payment app, a bit like Alipay / WeChat Pay, but with play money in **euro (€)**.
 
-- **Terminal** (`terminal.html`), opened on the computer: enter an amount and it shows a QR code.
+- **Terminal** (`terminal.html`), opened on the computer: sign in, enter an amount and it shows a QR code.
   - **Charge**: the phone that scans **pays** that amount.
   - **Give money**: the phone that scans **receives** that amount.
 - **Wallet** (`index.html`), opened on the phone: shows your balance, scans QR codes and keeps a history.
@@ -12,7 +12,7 @@ Every QR code works **once** and expires after **5 minutes**.
 ## Put it online (GitHub Pages)
 
 1. Push these files to the repo (`index.html` must sit at the top level).
-2. On GitHub, open **Settings → Pages**. Set **Source** to *Deploy from a branch*, **Branch** to `main` and the folder to `/ (root)`, then click **Save**.
+2. On GitHub, open **Settings → Pages** and set **Source** to **GitHub Actions**. Every push to `main` then deploys the site (`.github/workflows/pages.yml`).
 3. After about a minute the site is live at `https://izu83.github.io/NPay/`.
    - Phone: open `https://izu83.github.io/NPay/`. In the browser menu, choose **Add to Home Screen** to get an app icon.
    - Computer: open `https://izu83.github.io/NPay/terminal.html`.
@@ -29,22 +29,30 @@ python -m http.server 8765
 
 Then open http://localhost:8765/terminal.html.
 
-## Accounts and your own QR code
+## Accounts (Supabase)
 
-- **Create an account** with a name, a username, a password and (optionally) a profile photo. Each new account starts with €100.00 of play money. Several people can have accounts on the same phone; tap one under *On this phone* to sign in.
-- **Profile** (tap your picture at the top): change your photo, name and avatar colour, pick a light/dark theme, change your password, sign out, reset your balance or delete the account.
-- **My code**: every account has its own QR code. When someone scans it with NPay, they can send you money. Tap *Request an amount* to put a fixed amount (and a note) in the code. *Save image* downloads a card with your code to share.
-- **Sending money to a person**: scan their code, enter an amount, send. Because there's no server, the money then shows up as a **claim code** on your screen: the other person scans that once to take the money (valid 7 days, only works for the account it was sent to). You can show it again from your activity.
+Accounts, balances and payments live in a free [Supabase](https://supabase.com) database, so you can sign in on any phone or computer, and payments show up live.
 
-## How it works right now (and its limits)
+### One-time setup
 
-GitHub Pages only hosts static files and has no server or database, so:
+1. **Create the tables.** Either let the Supabase GitHub integration deploy `supabase/migrations/` (turn on *Deploy to production* in the integration), or open **SQL Editor** in Supabase, paste the whole file `supabase/migrations/20261116000000_npay_accounts.sql` and press **Run**. Running it twice is harmless.
+2. **Turn off email confirmation** (recommended): **Authentication → Sign In / Providers → Email → Confirm email** off. With it on, people must click a link in an email before they can sign in, and Supabase's built-in email only sends a few emails per hour.
+3. **Connect the site** with your **Project URL** and **anon public key** (Project Settings → API). Either:
+   - put them in `js/config.js`, or
+   - on GitHub: **Settings → Secrets and variables → Actions → Variables**, add `SUPABASE_URL` and `SUPABASE_ANON_KEY`, then re-run the Pages deploy.
 
-- Accounts, balances and history are stored **only in that phone's browser** (localStorage). Passwords are kept as a salted PBKDF2 hash, never in plain text. A new account starts with €100.00. A wallet from the old version (before accounts) moves into the first account you create.
-- The terminal **can't see** whether a phone actually paid. The person paying shows their "Paid" screen.
-- Anyone can make a "Give money" code, so this is for fun or demos, not real money — the euros are pretend.
+   The anon key is meant to be public. Never use the `service_role` key in the site.
 
-To add real accounts, live "payment received" on the computer, and phone-to-phone transfers, the next step is a free backend such as Firebase or Supabase. That can still be hosted from GitHub Pages.
+### What you can do
+
+- **Create an account** with name, username, email, password and an optional photo. Every new account starts with €100.00 of play money.
+- **Profile** (tap your picture): photo, name, avatar colour, theme, change password, sign out, delete account.
+- **My code**: your own QR code. Anyone who scans it with NPay can send you money, which arrives instantly. *Request an amount* puts a fixed amount in the code; *Save image* downloads a card with it.
+- **Terminal** (`terminal.html`): sign in with the same account. *Charge* codes are paid into your account, *Give money* codes are paid from it. The screen shows **Paid by …** the moment the phone pays, plus today's sales.
+
+### How the money stays honest
+
+Balances can only change through database functions (`send_money`, `settle_request`) that check the amount, the balance and who is calling, all inside one transaction. Row-level security means people can only read their own wallet and history. Codes work once and expire after 5 minutes. It's still play money — don't use it for real euros.
 
 ## Files
 
@@ -52,11 +60,13 @@ To add real accounts, live "payment received" on the computer, and phone-to-phon
 index.html            phone wallet
 terminal.html         computer terminal (shows the QR codes)
 css/style.css         styles (light + dark mode)
+js/config.js          Supabase URL + anon key
 js/common.js          QR payload format + shared helpers (QR drawing, theme)
-js/accounts.js        accounts: sign up, sign in, passwords, profile photos
+js/backend.js         Supabase calls: accounts, payments, live updates
 js/wallet.js          wallet logic, camera scanner, profile, my code
 js/terminal.js        terminal logic + QR generation
 manifest.webmanifest  "Add to Home Screen" support
+supabase/migrations/  database tables, security rules and payment functions
 sw.js                 offline support (network first, cache as fallback)
 icon.svg, icon-*.png  app icon (PNG versions for the iPhone/Android home screen)
 ```

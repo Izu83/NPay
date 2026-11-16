@@ -28,9 +28,18 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Prepare site folder
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
         run: |
           mkdir _site
-          cp -r index.html terminal.html manifest.webmanifest icon.svg css js _site/
+          cp -r index.html terminal.html manifest.webmanifest sw.js icon.svg icon-*.png css js _site/
+          # Optional: fill in the Supabase connection from repository variables
+          # (Settings → Secrets and variables → Actions → Variables).
+          if [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_ANON_KEY" ]; then
+            printf 'window.NPAY_CONFIG = { supabaseUrl: "%s", supabaseAnonKey: "%s" };\n' "$SUPABASE_URL" "$SUPABASE_ANON_KEY" > _site/js/config.js
+            echo "Supabase config written from repository variables"
+          fi
           # Add a version to the CSS/JS links so phones load the new files after a deploy.
           v="${GITHUB_SHA::7}"
           sed -i -E "s#(css/[a-z]+\.css|js/[a-z]+\.js)\"#\1?v=$v\"#g" _site/*.html

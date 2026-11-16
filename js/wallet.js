@@ -1,39 +1,87 @@
-// NPay wallet — runs on the phone. Each account's balance and history live in this browser.
+// NPay wallet — runs on the phone. Accounts, balances and payments live in Supabase
+// (see js/backend.js); this file is the screens.
 (() => {
   const $ = (id) => document.getElementById(id);
   const PENDING = "npay.pendingLink";
-  const CLAIM_DAYS = 7;
   const LOGO = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 20V4h3.6l6.8 9.6V4H19v16h-3.6L8.6 10.4V20z"/></svg>';
   const ICON_OUT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg>';
   const ICON_IN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M17 7L7 17M15 17H7V9"/></svg>';
   const EYE_OPEN = '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>';
   const EYE_SHUT = '<path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4M6.6 6.6C3.8 8.4 2 12 2 12s3.5 7 10 7a9.6 9.6 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2"/>';
-  const KIND_LABEL = { pay: "Paid", get: "Received", send: "Sent", recv: "Received" };
+  const KIND_LABEL = { pay: "Paid", get: "Received", send: "Sent", recv: "Received", charge: "Sale", payout: "Paid out" };
+  const KIND_TITLE = { pay: "You paid", get: "You received from", send: "You sent to", recv: "You received from", charge: "Your terminal was paid by", payout: "Your terminal paid out to" };
 
-  let me = Accounts.current();
+  let me = null;          // Backend.me: { id, email, username, name, color, avatar, balance, created_at }
+  let history = [];       // rows from the transactions table, newest first
   let shownBalance = 0;
   let filter = "all";
+  let hide = NPay.store.get("npay.hide", false);
+  let stopLive = null;
 
-  const save = () => Accounts.save();
   const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // ================= Views =================
-  function boot() {
-    me = Accounts.current();
-    $("authView").hidden = !!me;
-    $("appView").hidden = !me;
-    if (me) {
-      shownBalance = me.balance;
-      renderAll();
-      const pend = sessionStorage.getItem(PENDING);
-      if (pend) { sessionStorage.removeItem(PENDING); setTimeout(() => handleRequest(NPay.parseScanned(pend)), 400); }
-    } else {
-      renderAuth();
+  async function boot() {
+    if (!Backend.configured) {
+      showAuth();
+      $("setupNote").hidden = false;
+      $("authCard").hidden = true;
+      return;
+    }
+    try { me = await Backend.loadMe(); } catch (err) { me = null; NPay.toast(err.message); }
+    if (!me) return showAuth();
+
+    $("authView").hidden = true;
+    $("appView").hidden = false;
+    shownBalance = me.balance;
+    renderHeader();
+    renderBalance(false);
+    renderHistory();
+    await reloadHistory();
+    startLive();
+
+    const pend = sessionStorage.getItem(PENDING);
+    if (pend) { sessionStorage.removeItem(PENDING); setTimeout(() => handleRequest(NPay.parseScanned(pend)), 400); }
+  }
+
+  function showAuth() {
+    stopLive?.();
+    stopLive = null;
+    me = null;
+    $("authView").hidden = false;
+    $("appView").hidden = true;
+    paintSignupAvatar();
+  }
+
+  async function reloadHistory() {
+    try {
+      history = await Backend.history(100);
+      renderMonth();
+      renderHistory();
+    } catch (err) {
+      NPay.toast(err.message);
     }
   }
 
+  // Money arriving from someone else shows up straight away.
+  function startLive() {
+    stopLive?.();
+    stopLive = Backend.onTransaction(async (row) => {
+      if (history.some((t) => t.id === row.id)) return;
+      history.unshift(row);
+      await Backend.refreshBalance().catch(() => {});
+      renderBalance(true);
+      renderMonth();
+      renderHistory(row.id);
+      if (row.amount > 0 && (row.kind === "recv" || row.kind === "charge")) {
+        if (navigator.vibrate) navigator.vibrate([30, 40, 30]);
+        NPay.toast(`${NPay.money(row.amount, true)} from ${row.other_name}`);
+      }
+    });
+  }
+
   // ================= Auth =================
-  let suPfp = null;
+  let suAvatar = null;
 
   function setAuthTab(tab) {
     const up = tab === "up";
@@ -47,32 +95,10 @@
     $("liErr").textContent = $("suErr").textContent = "";
   }
 
-  function renderAuth() {
-    const accs = Accounts.list();
-    $("savedWrap").hidden = !accs.length;
-    $("savedList").innerHTML = "";
-    accs.forEach((a) => {
-      const b = document.createElement("button");
-      b.className = "saved-item";
-      b.type = "button";
-      b.innerHTML = `<span class="avatar"></span><span class="si-text"><b>${NPay.escapeHtml(a.name)}</b><small>@${NPay.escapeHtml(a.username)}</small></span><i aria-hidden="true">›</i>`;
-      NPay.paintAvatar(b.querySelector(".avatar"), a);
-      b.onclick = () => {
-        setAuthTab("in");
-        $("liUser").value = a.username;
-        $("liPass").value = "";
-        $("liPass").focus();
-      };
-      $("savedList").appendChild(b);
-    });
-    setAuthTab(accs.length ? "in" : "up");
-    paintSignupAvatar();
-  }
-
   function paintSignupAvatar() {
     const name = $("suName").value.trim();
     const el = $("suAvatar");
-    if (suPfp || name) NPay.paintAvatar(el, { name, pfp: suPfp, color: NPay.colorFor($("suUser").value || name) });
+    if (suAvatar || name) NPay.paintAvatar(el, { name, pfp: suAvatar, color: NPay.colorFor($("suUser").value || name) });
     else { el.style.background = ""; el.style.color = ""; el.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="9" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>'; }
   }
 
@@ -81,6 +107,12 @@
     btn.disabled = true;
     btn.innerHTML = `<span class="spinner"></span>${label}`;
     try { await fn(); } finally { btn.disabled = false; btn.textContent = text; }
+  }
+
+  function shake(el) {
+    el.classList.remove("shake");
+    void el.offsetWidth;
+    el.classList.add("shake");
   }
 
   $("tabIn").onclick = () => setAuthTab("in");
@@ -96,24 +128,32 @@
   });
   $("suName").addEventListener("input", () => {
     paintSignupAvatar();
-    // Suggest a username from the name while the user hasn't typed one.
+    // Suggest a username from the name until the user types their own.
     if (!$("suUser").dataset.touched) $("suUser").value = $("suName").value.toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, ".").replace(/^\.+|\.+$/g, "").slice(0, 20);
   });
   $("suUser").addEventListener("input", () => { $("suUser").dataset.touched = "1"; paintSignupAvatar(); });
   $("suPhoto").addEventListener("change", async (e) => {
-    try { suPfp = await Accounts.imageToPfp(e.target.files[0]); paintSignupAvatar(); } catch (err) { NPay.toast(err.message); }
+    try { suAvatar = await NPay.imageToAvatar(e.target.files[0]); paintSignupAvatar(); } catch (err) { NPay.toast(err.message); }
     e.target.value = "";
   });
+
+  function authNote(text) {
+    $("authNote").textContent = text || "";
+    $("authNote").hidden = !text;
+  }
 
   $("loginForm").onsubmit = (e) => {
     e.preventDefault();
     $("liErr").textContent = "";
+    authNote("");
+    const email = $("liEmail").value.trim();
+    if (!email || !$("liPass").value) { $("liErr").textContent = "Enter your email and password"; shake($("loginForm")); return; }
     busy($("liBtn"), "Signing in…", async () => {
       try {
-        await Accounts.login($("liUser").value, $("liPass").value);
+        await Backend.signIn(email, $("liPass").value);
         $("liPass").value = "";
-        boot();
-        NPay.toast(`Welcome back, ${Accounts.current().name.split(" ")[0]}`);
+        await boot();
+        NPay.toast(`Welcome back, ${me.name.split(" ")[0]}`);
       } catch (err) {
         $("liErr").textContent = err.message;
         shake($("loginForm"));
@@ -124,26 +164,37 @@
   $("signupForm").onsubmit = (e) => {
     e.preventDefault();
     $("suErr").textContent = "";
+    authNote("");
+    const name = $("suName").value.trim();
+    const username = $("suUser").value.trim().replace(/^@/, "").toLowerCase();
+    const email = $("suEmail").value.trim();
+    const password = $("suPass").value;
+    const err = !name ? "Enter your name"
+      : !/^[a-z0-9._]{3,20}$/.test(username) ? "Username: 3–20 letters, numbers, dots or underscores"
+      : !/^\S+@\S+\.\S+$/.test(email) ? "Enter a valid email"
+      : password.length < 6 ? "Password needs at least 6 characters" : "";
+    if (err) { $("suErr").textContent = err; shake($("signupForm")); return; }
+
     busy($("suBtn"), "Creating…", async () => {
       try {
-        const acc = await Accounts.create({ name: $("suName").value, username: $("suUser").value, password: $("suPass").value, pfp: suPfp });
-        suPfp = null;
-        ["suName", "suUser", "suPass"].forEach((id) => ($(id).value = ""));
+        await Backend.signUp({ email, password, username, name, color: NPay.colorFor(username), avatar: suAvatar });
+        suAvatar = null;
+        ["suName", "suUser", "suEmail", "suPass"].forEach((id) => ($(id).value = ""));
         delete $("suUser").dataset.touched;
-        boot();
-        NPay.toast(acc.migrated ? "Account created — your old wallet moved into it" : `Welcome to NPay, ${acc.name.split(" ")[0]}`);
-      } catch (err) {
-        $("suErr").textContent = err.message;
-        shake($("signupForm"));
+        await boot();
+        NPay.toast(`Welcome to NPay, ${me.name.split(" ")[0]}`);
+      } catch (e2) {
+        if (e2.code === "confirm") {
+          setAuthTab("in");
+          $("liEmail").value = email;
+          authNote(e2.message);
+        } else {
+          $("suErr").textContent = e2.message;
+          shake($("signupForm"));
+        }
       }
     });
   };
-
-  function shake(el) {
-    el.classList.remove("shake");
-    void el.offsetWidth;
-    el.classList.add("shake");
-  }
 
   // ================= Home rendering =================
   function greeting() {
@@ -151,26 +202,19 @@
     return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
   }
 
-  function renderAll() {
-    renderHeader();
-    renderBalance(false);
-    renderMonth();
-    renderHistory();
-  }
-
   function renderHeader() {
     $("greeting").textContent = greeting();
     $("ownerName").textContent = me.name;
     NPay.paintAvatar($("avatar"), me);
     $("bcUser").textContent = "@" + me.username;
-    $("balance").classList.toggle("hidden", !!me.hide);
-    $("eyeIcon").innerHTML = me.hide ? EYE_SHUT : EYE_OPEN;
-    $("eyeBtn").setAttribute("aria-label", me.hide ? "Show balance" : "Hide balance");
+    $("balance").classList.toggle("hidden", hide);
+    $("eyeIcon").innerHTML = hide ? EYE_SHUT : EYE_OPEN;
+    $("eyeBtn").setAttribute("aria-label", hide ? "Show balance" : "Hide balance");
   }
 
   function renderBalance(animate) {
     const el = $("balance");
-    if (animate) {
+    if (animate && !reduced()) {
       NPay.animateMoney(el, shownBalance, me.balance, 900);
       el.classList.remove("bump");
       void el.offsetWidth;
@@ -184,10 +228,10 @@
   function renderMonth() {
     const now = new Date();
     let inn = 0, out = 0;
-    for (const tx of me.history) {
-      const d = new Date(tx.at);
+    for (const tx of history) {
+      const d = new Date(tx.created_at);
       if (d.getMonth() !== now.getMonth() || d.getFullYear() !== now.getFullYear()) continue;
-      if (tx.delta > 0) inn += tx.delta; else out -= tx.delta;
+      if (tx.amount > 0) inn += tx.amount; else out -= tx.amount;
     }
     $("mIn").textContent = NPay.money(inn, true);
     $("mOut").textContent = out ? NPay.money(-out) : NPay.money(0);
@@ -206,23 +250,21 @@
     return d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "long", year: d.getFullYear() === today.getFullYear() ? undefined : "numeric" });
   }
 
-  function txAvatar(tx) {
-    return { name: tx.who, color: tx.color || NPay.colorFor(tx.who) };
-  }
+  const txAvatar = (tx) => ({ name: tx.other_name, color: tx.other_color || NPay.colorFor(tx.other_name) });
 
   function renderHistory(newId) {
     const h = $("history");
-    const items = me.history.filter((t) => filter === "all" || (filter === "in" ? t.delta > 0 : t.delta < 0));
+    const items = history.filter((t) => filter === "all" || (filter === "in" ? t.amount > 0 : t.amount < 0));
     if (!items.length) {
-      h.innerHTML = `<div class="empty">${me.history.length
+      h.innerHTML = `<div class="empty">${history.length
         ? "Nothing here with this filter."
         : "<b>No payments yet.</b><br>Scan a shop's code to pay, or show your code to get paid."}</div>`;
       return;
     }
     let lastDay = "";
     h.innerHTML = "";
-    items.slice(0, 100).forEach((tx, i) => {
-      const day = dayLabel(tx.at);
+    items.forEach((tx, i) => {
+      const day = dayLabel(tx.created_at);
       if (day !== lastDay) {
         const d = document.createElement("div");
         d.className = "day";
@@ -230,18 +272,18 @@
         h.appendChild(d);
         lastDay = day;
       }
-      const incoming = tx.delta > 0;
-      const time = new Date(tx.at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+      const incoming = tx.amount > 0;
+      const time = new Date(tx.created_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
       const row = document.createElement("button");
       row.className = "tx" + (tx.id === newId ? " new" : "");
       row.style.animationDelay = Math.min(i, 10) * 0.03 + "s";
       row.innerHTML = `
         <span class="tx-avatar"><span class="avatar sm"></span><span class="tx-dir ${incoming ? "in" : ""}">${incoming ? ICON_IN : ICON_OUT}</span></span>
         <span class="tx-main">
-          <span class="tx-who">${NPay.escapeHtml(tx.who)}</span>
-          <span class="tx-meta">${KIND_LABEL[tx.kind] || (incoming ? "Received" : "Paid")} · ${time}${tx.note ? " · " + NPay.escapeHtml(tx.note) : ""}</span>
+          <span class="tx-who">${NPay.escapeHtml(tx.other_name)}</span>
+          <span class="tx-meta">${KIND_LABEL[tx.kind] || ""} · ${time}${tx.note ? " · " + NPay.escapeHtml(tx.note) : ""}</span>
         </span>
-        <span class="tx-amt num ${incoming ? "in" : ""}">${NPay.money(tx.delta, true)}</span>`;
+        <span class="tx-amt num ${incoming ? "in" : ""}">${NPay.money(tx.amount, true)}</span>`;
       NPay.paintAvatar(row.querySelector(".avatar"), txAvatar(tx));
       row.onclick = () => openTx(tx);
       h.appendChild(row);
@@ -294,72 +336,70 @@
   // ================= Handling a scanned code =================
   let pending = null;
 
-  function fail(title, amount, text) {
+  function fail(title, amount = "", text = "") {
     showResult({ ok: false, title, amount, text });
   }
 
-  function handleRequest(req) {
+  async function handleRequest(req) {
     if (!req) return fail("Not an NPay code", "", "This QR code isn't an NPay code.");
     if (req.t === "user") return startSend(req);
+    if (req.t !== "req") return fail("Old NPay code", "", "This code is from the old offline version of NPay. Ask for a new one.");
 
-    if (req.t === "xfer" && req.to !== me.uid) return fail("This money isn't for you", NPay.money(req.amt), `${req.who} sent it to someone else. Only they can take it.`);
-    if (Accounts.isUsed(req.id)) return fail("Already used", NPay.money(req.amt), "This QR code was already scanned. Ask for a new one.");
-    if (req.exp && Date.now() > req.exp) return fail("Code expired", NPay.money(req.amt), "This code is no longer valid. Ask for a new one.");
+    NPay.toast("Checking code…");
+    let r;
+    try { r = await Backend.getRequest(req.id); } catch (err) { return fail("Couldn't check the code", "", err.message); }
+    if (!r) return fail("Code not found", "", "This code doesn't exist. Ask for a new one.");
+    if (r.owner_id === me.id) return fail("That's your own code", NPay.money(r.amount), "Scan it with another account.");
+    if (r.status === "done") return fail("Already used", NPay.money(r.amount), "This code was already paid. Ask for a new one.");
+    if (r.status !== "open" || new Date(r.expires_at) < new Date()) return fail("Code expired", NPay.money(r.amount), "This code is no longer valid. Ask for a new one.");
 
-    pending = req;
-    const paying = req.t === "pay";
-    const after = me.balance + (paying ? -req.amt : req.amt);
+    pending = r;
+    const paying = r.kind === "pay";
+    const after = me.balance + (paying ? -r.amount : r.amount);
     const tooPoor = paying && after < 0;
 
-    NPay.paintAvatar($("cAvatar"), { name: req.who, color: NPay.colorFor(req.fu || req.who) });
-    $("cKind").textContent = paying ? "You're paying" : req.t === "xfer" ? "Money sent to you by" : "You're receiving from";
-    $("cWho").textContent = req.who + (req.fu ? ` · @${req.fu}` : "");
-    $("cAmount").textContent = NPay.money(req.amt);
-    $("cNote").textContent = req.note || "";
-    $("cNote").style.display = req.note ? "" : "none";
+    NPay.paintAvatar($("cAvatar"), { name: r.label, avatar: r.owner_avatar, color: r.owner_color });
+    $("cKind").textContent = paying ? "You're paying" : "You're receiving from";
+    $("cWho").textContent = r.label + (r.label.toLowerCase() !== r.owner_name.toLowerCase() ? ` · @${r.owner_username}` : "");
+    $("cAmount").textContent = NPay.money(r.amount);
+    $("cNote").textContent = r.note || "";
+    $("cNote").style.display = r.note ? "" : "none";
     $("cNow").textContent = NPay.money(me.balance);
     $("cAfter").innerHTML = tooPoor ? '<span class="warn">Not enough money</span>' : NPay.money(after);
-    $("cOk").textContent = paying ? `Pay ${NPay.money(req.amt)}` : `Take ${NPay.money(req.amt)}`;
+    $("cOk").textContent = paying ? `Pay ${NPay.money(r.amount)}` : `Take ${NPay.money(r.amount)}`;
     $("cOk").disabled = tooPoor;
     openSheet("confirmSheet");
   }
 
-  function confirmPending() {
-    const req = pending;
-    if (!req) return;
+  async function confirmPending() {
+    const r = pending;
+    if (!r) return;
     const btn = $("cOk");
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span>Processing…';
-
-    setTimeout(() => {
+    try {
+      await Backend.settleRequest(r.id);
+    } catch (err) {
       closeSheet();
-      if (Accounts.isUsed(req.id)) return fail("Already used", NPay.money(req.amt), "");
-      const delta = req.t === "pay" ? -req.amt : req.amt;
-      if (me.balance + delta < 0) return fail("Not enough money", NPay.money(req.amt), "");
-
-      me.balance += delta;
-      Accounts.markUsed(req.id);
-      const kind = req.t === "xfer" ? "recv" : req.t;
-      me.history.unshift({ id: req.id, kind, who: req.who, sub: req.fu, color: NPay.colorFor(req.fu || req.who), note: req.note || "", delta, at: Date.now() });
-      save();
-      lastTxId = req.id;
-
-      if (navigator.vibrate) navigator.vibrate([30, 40, 30]);
-      showResult({
-        ok: true,
-        title: req.t === "pay" ? `Paid to ${req.who}` : `Received from ${req.who}`,
-        amount: NPay.money(req.amt),
-        text: req.note || "",
-        rows: [["New balance", NPay.money(me.balance)], ["Time", new Date().toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })], ["Reference", req.id.toUpperCase()]],
-      });
-    }, 700);
+      return fail(err.message, NPay.money(r.amount));
+    }
+    closeSheet();
+    if (navigator.vibrate) navigator.vibrate([30, 40, 30]);
+    afterMoney = true;
+    showResult({
+      ok: true,
+      title: r.kind === "pay" ? `Paid to ${r.label}` : `Received from ${r.label}`,
+      amount: NPay.money(r.amount),
+      text: r.note || "",
+      rows: [["New balance", NPay.money(me.balance)], ["Time", new Date().toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })], ["Reference", r.id.replace(/-/g, "").slice(0, 12).toUpperCase()]],
+    });
   }
 
   // ---------- Sending to a person (their account QR) ----------
   let sendTo = null;
 
   function startSend(req) {
-    if (req.uid === me.uid) return fail("That's your own code", "", "Scan someone else's code to send them money.");
+    if (req.uid === me.id) return fail("That's your own code", "", "Scan someone else's code to send them money.");
     sendTo = req;
     NPay.paintAvatar($("sAvatar"), { name: req.n, color: req.c });
     $("sWho").textContent = req.n;
@@ -372,6 +412,15 @@
     $("sBal").textContent = `You have ${NPay.money(me.balance)}`;
     updateSendBtn();
     openSheet("sendSheet");
+    // Show their current name and photo (the QR may be older than their profile).
+    Backend.getProfile(req.uid).then((p) => {
+      if (sendTo !== req) return;
+      if (!p) { closeSheet(); return fail("Account not found", "", "This person's account no longer exists."); }
+      sendTo = { ...req, n: p.name, u: p.username, c: p.color };
+      NPay.paintAvatar($("sAvatar"), p);
+      $("sWho").textContent = p.name;
+      $("sUser").textContent = "@" + p.username;
+    }).catch(() => {});
   }
 
   function updateSendBtn() {
@@ -381,7 +430,7 @@
   }
   $("sAmount").addEventListener("input", updateSendBtn);
 
-  function doSend() {
+  async function doSend() {
     const amt = NPay.parseAmount($("sAmount").value);
     if (!amt) { shake($("sAmountWrap")); NPay.toast("Enter an amount, like 4.50"); return; }
     if (amt > me.balance) { shake($("sAmountWrap")); NPay.toast("Not enough money"); return; }
@@ -390,32 +439,31 @@
     const btn = $("sOk");
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span>Sending…';
-
-    setTimeout(() => {
+    try {
+      await Backend.sendMoney(to.uid, amt, note);
+    } catch (err) {
       btn.disabled = false;
-      closeSheet();
-      const claim = { t: "xfer", id: NPay.newId(), amt, who: me.name, fu: me.username, to: to.uid, note: note || undefined, exp: Date.now() + CLAIM_DAYS * 864e5 };
-      const link = NPay.linkFor(claim);
-      me.balance -= amt;
-      me.history.unshift({ id: claim.id, kind: "send", who: to.n, sub: to.u, color: to.c, note, delta: -amt, at: Date.now(), claim: link, exp: claim.exp });
-      save();
-      lastTxId = claim.id;
-      if (navigator.vibrate) navigator.vibrate([30, 40, 30]);
-      showResult({
-        ok: true,
-        title: `Sent to ${to.n}`,
-        amount: NPay.money(amt),
-        text: "",
-        claim: { link, name: to.n },
-        rows: [["New balance", NPay.money(me.balance)], ["Reference", claim.id.toUpperCase()]],
-      });
-    }, 700);
+      updateSendBtn();
+      NPay.toast(err.message);
+      return;
+    }
+    btn.disabled = false;
+    closeSheet();
+    if (navigator.vibrate) navigator.vibrate([30, 40, 30]);
+    afterMoney = true;
+    showResult({
+      ok: true,
+      title: `Sent to ${to.n}`,
+      amount: NPay.money(amt),
+      text: note ? `${note} · it's in their wallet now` : "It's in their wallet now",
+      rows: [["New balance", NPay.money(me.balance)], ["To", "@" + to.u]],
+    });
   }
 
   // ================= Result screen =================
-  let lastTxId = null;
+  let afterMoney = false;
 
-  function showResult({ ok, title, amount = "", text = "", rows = [], claim = null }) {
+  function showResult({ ok, title, amount = "", text = "", rows = [] }) {
     $("rCheck").className = ok ? "check" : "check bad";
     $("rMark").setAttribute("d", ok ? "M34 53l12 12 24-26" : "M38 38l28 28M66 38L38 66");
     $("rTitle").textContent = title;
@@ -423,14 +471,6 @@
     $("rAmount").style.display = amount ? "" : "none";
     $("rText").textContent = text;
     $("rText").style.display = text ? "" : "none";
-    $("rClaim").hidden = !claim;
-    $("rCheck").hidden = !!claim;
-    if (claim) {
-      NPay.drawQr($("rQr"), claim.link, 384);
-      $("rLogo").innerHTML = LOGO;
-      $("rClaimText").textContent = `Now let ${claim.name} scan this with NPay to take the money. It works once, for ${CLAIM_DAYS} days.`;
-      $("rCopy").onclick = () => copyText(claim.link, "Link copied — send it to " + claim.name);
-    }
     $("rReceipt").innerHTML = rows.map(([k, v]) => `<div class="row"><span>${k}</span><span class="num">${NPay.escapeHtml(v)}</span></div>`).join("");
     $("rReceipt").style.display = rows.length ? "" : "none";
     openScreen("resultScreen");
@@ -438,8 +478,15 @@
 
   $("rDone").onclick = () => {
     closeScreen("resultScreen");
-    if (lastTxId) {
-      setTimeout(() => { renderBalance(true); renderMonth(); renderHistory(lastTxId); lastTxId = null; }, 250);
+    if (afterMoney) {
+      afterMoney = false;
+      setTimeout(async () => {
+        renderBalance(true);
+        const before = new Set(history.map((t) => t.id));
+        await reloadHistory();
+        const fresh = history.find((t) => !before.has(t.id));
+        if (fresh) renderHistory(fresh.id);
+      }, 250);
     }
   };
 
@@ -449,23 +496,16 @@
 
   // ================= Transaction details =================
   function openTx(tx) {
-    const incoming = tx.delta > 0;
+    const incoming = tx.amount > 0;
     NPay.paintAvatar($("tAvatar"), txAvatar(tx));
-    $("tKind").textContent = { pay: "You paid", get: "You received from", send: "You sent to", recv: "You received from" }[tx.kind] || (incoming ? "You received from" : "You paid");
-    $("tWho").textContent = tx.who + (tx.sub ? ` · @${tx.sub}` : "");
-    $("tAmount").textContent = NPay.money(tx.delta, true);
+    $("tKind").textContent = KIND_TITLE[tx.kind] || (incoming ? "You received from" : "You paid");
+    $("tWho").textContent = tx.other_name + (tx.other_username ? ` · @${tx.other_username}` : "");
+    $("tAmount").textContent = NPay.money(tx.amount, true);
     $("tAmount").classList.toggle("in", incoming);
     $("tNote").textContent = tx.note || "";
     $("tNote").style.display = tx.note ? "" : "none";
-    const rows = [["Date", new Date(tx.at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })], ["Reference", tx.id.toUpperCase()]];
-    if (tx.kind === "send") rows.push(["Claim code", tx.exp && Date.now() > tx.exp ? "Expired" : "Valid until " + new Date(tx.exp).toLocaleDateString()]);
+    const rows = [["Date", new Date(tx.created_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })], ["Reference", tx.ref]];
     $("tRows").innerHTML = rows.map(([k, v]) => `<div class="row"><span>${k}</span><span class="num">${NPay.escapeHtml(v)}</span></div>`).join("");
-    const canClaim = tx.kind === "send" && tx.claim && !(tx.exp && Date.now() > tx.exp);
-    $("tClaim").hidden = !canClaim;
-    $("tClaim").onclick = () => {
-      closeSheet();
-      showResult({ ok: true, title: `Sent to ${tx.who}`, amount: NPay.money(-tx.delta), claim: { link: tx.claim, name: tx.who } });
-    };
     openSheet("txSheet");
   }
   $("tClose").onclick = closeSheet;
@@ -474,7 +514,7 @@
   let codeReq = { amt: undefined, note: undefined };
 
   function codeLink() {
-    return NPay.linkFor({ t: "user", uid: me.uid, u: me.username, n: me.name, c: me.color, amt: codeReq.amt, note: codeReq.note });
+    return NPay.linkFor({ t: "user", uid: me.id, u: me.username, n: me.name, c: me.color, amt: codeReq.amt, note: codeReq.note });
   }
 
   function renderCode() {
@@ -488,8 +528,8 @@
     NPay.drawQr($("codeQr"), codeLink(), 512);
     // The middle of the code shows your photo, or the NPay mark.
     const logo = $("codeLogo");
-    logo.className = me.pfp ? "photo" : "";
-    logo.innerHTML = me.pfp ? `<img src="${me.pfp}" alt="">` : LOGO;
+    logo.className = me.avatar ? "photo" : "";
+    logo.innerHTML = me.avatar ? `<img src="${me.avatar}" alt="">` : LOGO;
     const frame = $("codeQrFrame");
     frame.classList.remove("pop");
     void frame.offsetWidth;
@@ -543,7 +583,6 @@
     glow(160, 120, 620, 0.5); glow(W - 80, H * 0.6, 560, 0.25);
     g.fillStyle = "#ffffff";
     roundRect(g, 90, 150, W - 180, H - 300, 56); g.fill();
-    // avatar
     const ax = W / 2, ay = 150, ar = 96;
     g.save(); g.beginPath(); g.arc(ax, ay, ar + 12, 0, Math.PI * 2); g.fillStyle = "#ffffff"; g.fill(); g.restore();
     await drawAvatar(g, ax, ay, ar, me);
@@ -555,10 +594,9 @@
     const qs = 640;
     g.imageSmoothingEnabled = false;
     g.drawImage(qr, (W - qs) / 2, qy, qs, qs);
-    // centre mark
     const cx = W / 2, cy = qy + qs / 2;
     g.fillStyle = "#ffffff"; roundRect(g, cx - 66, cy - 66, 132, 132, 34); g.fill();
-    if (me.pfp) await drawAvatar(g, cx, cy, 54, me);
+    if (me.avatar) await drawAvatar(g, cx, cy, 54, me);
     else { g.fillStyle = "#32292f"; roundRect(g, cx - 54, cy - 54, 108, 108, 28); g.fill(); g.fillStyle = "#99e1d9"; g.font = font(800, 64); g.textBaseline = "middle"; g.fillText("N", cx, cy + 3); g.textBaseline = "alphabetic"; }
     g.fillStyle = "#6c5f68"; g.font = font(500, 36);
     g.fillText(codeReq.amt ? `Scan with NPay to pay me ${NPay.money(codeReq.amt)}` : "Scan with NPay to send me money", W / 2, qy + qs + 70, W - 260);
@@ -587,9 +625,9 @@
   async function drawAvatar(g, x, y, r, acc) {
     g.save();
     g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.closePath(); g.clip();
-    if (acc.pfp) {
+    if (acc.avatar) {
       const img = new Image();
-      img.src = acc.pfp;
+      img.src = acc.avatar;
       await img.decode().catch(() => {});
       g.drawImage(img, x - r, y - r, r * 2, r * 2);
     } else {
@@ -610,11 +648,12 @@
     NPay.paintAvatar($("pAvatar"), { ...me, color: pColor });
     $("pNameView").textContent = me.name;
     $("pUserView").textContent = "@" + me.username;
-    $("pRemovePhoto").hidden = !me.pfp;
+    $("pRemovePhoto").hidden = !me.avatar;
     $("pUser").textContent = "@" + me.username;
-    $("pSince").textContent = new Date(me.created).toLocaleDateString(undefined, { month: "long", year: "numeric" });
-    $("pCount").textContent = me.history.length;
-    $("colorField").hidden = !!me.pfp;
+    $("pEmail").textContent = me.email || "";
+    $("pSince").textContent = new Date(me.created_at).toLocaleDateString(undefined, { month: "long", year: "numeric" });
+    $("pCount").textContent = history.length >= 100 ? "100+" : history.length;
+    $("colorField").hidden = !!me.avatar;
     $("swatches").innerHTML = NPay.COLORS.map((c) =>
       `<button class="swatch ${c === pColor ? "on" : ""}" role="radio" aria-checked="${c === pColor}" aria-label="Colour ${c}" data-c="${c}" style="background:${c}"></button>`).join("");
     $("swatches").querySelectorAll(".swatch").forEach((s) => (s.onclick = () => { pColor = s.dataset.c; renderProfile(); }));
@@ -631,31 +670,32 @@
     openScreen("profileScreen");
   }
 
+  async function saveProfile(fields, okMsg) {
+    try {
+      await Backend.updateProfile(fields);
+      renderProfile();
+      renderHeader();
+      NPay.toast(okMsg);
+    } catch (err) {
+      NPay.toast(err.message);
+    }
+  }
+
   $("profileBtn").onclick = openProfile;
   $("profileClose").onclick = () => closeScreen("profileScreen");
   $("pShowCode").onclick = () => { closeScreen("profileScreen"); openCode(); };
 
   $("pPhoto").addEventListener("change", async (e) => {
-    try {
-      me.pfp = await Accounts.imageToPfp(e.target.files[0]);
-      save();
-      renderProfile();
-      renderHeader();
-      NPay.toast("Photo updated");
-    } catch (err) { NPay.toast(err.message); }
+    const file = e.target.files[0];
     e.target.value = "";
+    try { await saveProfile({ avatar: await NPay.imageToAvatar(file) }, "Photo updated"); } catch (err) { NPay.toast(err.message); }
   });
-  $("pRemovePhoto").onclick = () => { me.pfp = null; save(); renderProfile(); renderHeader(); NPay.toast("Photo removed"); };
+  $("pRemovePhoto").onclick = () => saveProfile({ avatar: null }, "Photo removed");
 
   $("pSave").onclick = () => {
     const name = $("pName").value.trim();
     if (!name) { NPay.toast("Your name can't be empty"); $("pName").focus(); return; }
-    me.name = name;
-    me.color = pColor;
-    save();
-    renderProfile();
-    renderHeader();
-    NPay.toast("Saved");
+    busy($("pSave"), "Saving…", () => saveProfile({ name, color: pColor }, "Saved"));
   };
 
   $("themeSeg").querySelectorAll("button").forEach((b) => {
@@ -663,29 +703,19 @@
   });
   matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => NPay.applyTheme());
 
-  function signOut() {
-    Accounts.logout();
+  $("pLogout").onclick = async () => {
+    await Backend.signOut();
     closeScreen("profileScreen");
-    me = null;
-    boot();
-  }
-  $("pLogout").onclick = () => { signOut(); NPay.toast("Signed out"); };
-  $("pSwitch").onclick = () => { signOut(); };
-
-  $("pReset").onclick = () => {
-    if (!confirm(`Reset your balance to ${NPay.money(Accounts.START_BALANCE)} and clear your activity?`)) return;
-    me.balance = Accounts.START_BALANCE;
-    me.history = [];
-    save();
-    renderProfile();
-    renderAll();
-    NPay.toast("Balance reset");
+    showAuth();
+    setAuthTab("in");
+    NPay.toast("Signed out");
   };
 
   $("pPassword").onclick = () => { $("pwOld").value = $("pwNew").value = ""; $("pwErr").textContent = ""; openSheet("pwSheet"); };
   $("pwCancel").onclick = closeSheet;
   $("pwOk").onclick = () => busy($("pwOk"), "", async () => {
-    try { await Accounts.changePassword(me, $("pwOld").value, $("pwNew").value); closeSheet(); NPay.toast("Password changed"); }
+    if ($("pwNew").value.length < 6) { $("pwErr").textContent = "New password needs at least 6 characters"; return; }
+    try { await Backend.changePassword($("pwOld").value, $("pwNew").value); closeSheet(); NPay.toast("Password changed"); }
     catch (err) { $("pwErr").textContent = err.message; }
   });
 
@@ -693,11 +723,10 @@
   $("delCancel").onclick = closeSheet;
   $("delOk").onclick = () => busy($("delOk"), "", async () => {
     try {
-      await Accounts.remove(me, $("delPw").value);
+      await Backend.deleteAccount($("delPw").value);
       closeSheet();
       closeScreen("profileScreen");
-      me = null;
-      boot();
+      showAuth();
       NPay.toast("Account deleted");
     } catch (err) { $("delErr").textContent = err.message; }
   });
@@ -786,13 +815,16 @@
   function checkHash() {
     if (!location.hash.includes("r=")) return;
     const hash = location.hash;
-    history.replaceState(null, "", location.pathname + location.search);
+    history_replace();
     if (!me) {
       sessionStorage.setItem(PENDING, hash);
       NPay.toast("Sign in or create an account to continue");
       return;
     }
     setTimeout(() => handleRequest(NPay.parseScanned(hash)), 350);
+  }
+  function history_replace() {
+    window.history.replaceState(null, "", location.pathname + location.search);
   }
 
   // ================= Wire up =================
@@ -805,7 +837,7 @@
   $("sAmount").addEventListener("keydown", (e) => { if (e.key === "Enter") doSend(); });
   $("aAmount").addEventListener("keydown", (e) => { if (e.key === "Enter") $("aOk").click(); });
 
-  $("eyeBtn").onclick = () => { me.hide = !me.hide; save(); renderHeader(); };
+  $("eyeBtn").onclick = () => { hide = !hide; NPay.store.set("npay.hide", hide); renderHeader(); };
 
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
@@ -815,12 +847,20 @@
     else if (isOpen("profileScreen")) closeScreen("profileScreen");
   });
 
-  // Keep the greeting and month figures fresh when the app comes back to the front.
-  document.addEventListener("visibilitychange", () => { if (!document.hidden && me) { renderHeader(); renderMonth(); } });
+  // Catch up when the app comes back to the front (live updates pause in the background).
+  document.addEventListener("visibilitychange", async () => {
+    if (document.hidden || !me) return;
+    renderHeader();
+    try { await Backend.refreshBalance(); } catch {}
+    if (me.balance !== shownBalance) renderBalance(true);
+    reloadHistory();
+  });
+
+  // Signed out elsewhere (another tab, password change, deleted account).
+  Backend.onAuthChange?.((event) => { if (event === "SIGNED_OUT" && me) showAuth(); });
 
   window.addEventListener("hashchange", checkHash);
-  boot();
-  checkHash();
+  boot().then(checkHash);
 
   if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
 })();

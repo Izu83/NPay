@@ -1,7 +1,7 @@
 // NPay service worker: network first, so a new deploy shows up right away;
 // the cached copy is only used when the phone is offline.
-const CACHE = "npay-v2";
-const SHELL = ["./", "index.html", "terminal.html", "css/style.css", "js/common.js", "js/accounts.js", "js/wallet.js", "js/terminal.js", "icon.svg", "icon-192.png", "manifest.webmanifest"];
+const CACHE = "npay-v3";
+const SHELL = ["./", "index.html", "terminal.html", "css/style.css", "js/config.js", "js/common.js", "js/backend.js", "js/wallet.js", "js/terminal.js", "icon.svg", "icon-192.png", "manifest.webmanifest"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -16,7 +16,9 @@ self.addEventListener("fetch", (e) => {
   e.respondWith(
     fetch(e.request)
       .then((res) => {
-        if (res.ok && (new URL(e.request.url).origin === location.origin || res.type === "cors")) {
+        // Cache the app's own files and the libraries/fonts, never live data from Supabase.
+        const host = new URL(e.request.url).host;
+        if (res.ok && (host === location.host || /^(cdn\.jsdelivr\.net|fonts\.(googleapis|gstatic)\.com)$/.test(host))) {
           const copy = res.clone();
           caches.open(CACHE).then((c) => c.put(e.request, copy));
         }

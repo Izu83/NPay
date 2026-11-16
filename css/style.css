@@ -829,3 +829,43 @@ button { cursor: pointer; }
 /* Dark mode: turquoise carries the "selected" state, since mulberry is the ground. */
 :root[data-theme="dark"] .chip.on { background: var(--tq); color: var(--mulberry); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .chip.on { background: var(--tq); color: var(--mulberry); } }
+
+/* ---------- Connected-account pieces ---------- */
+code { font-size: 0.92em; background: var(--field); padding: 1px 6px; border-radius: 6px; }
+.setup {
+  background: var(--glass); border: 1px solid var(--glass-edge); border-radius: 24px;
+  padding: 16px 18px; margin-bottom: 18px; box-shadow: inset 0 1px 0 var(--glass-hi);
+}
+.setup h2 { font-size: 17px; margin: 0 0 6px; }
+.setup p, .setup-inline { margin: 0; color: var(--muted); line-height: 1.5; }
+.setup-inline { margin-bottom: 16px; }
+.form-note {
+  margin: 16px 0 0; padding: 12px 16px; border-radius: 18px;
+  background: var(--accent-soft); color: var(--text); font-weight: 600; line-height: 1.45;
+}
+.text-link.inline { padding: 0; display: inline; }
+
+.term-account { display: flex; align-items: center; gap: 10px; }
+.term-me {
+  display: flex; align-items: center; gap: 10px;
+  padding: 4px 6px 4px 4px; border-radius: 999px;
+  background: var(--glass); border: 1px solid var(--glass-edge); box-shadow: inset 0 1px 0 var(--glass-hi);
+  -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+}
+.term-me .me-text .sub { color: var(--in); font-weight: 700; }
+.term-me .text-btn { font-size: 14px; padding: 8px 10px; }
+.term-signin { max-width: 440px; margin: 40px auto 0; }
+.term-lede { color: var(--muted); margin: -8px 0 20px; line-height: 1.5; }
+.term-left { display: grid; gap: 18px; align-content: start; }
+.sales-total { font-weight: 700; color: var(--in); }
+
+.paid-show { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; }
+.paid-show .check { margin-bottom: 10px; animation: pop 0.6s var(--spring) both; }
+.paid-show .check .ring { animation: draw 0.6s var(--ease) 0.1s forwards; }
+.paid-show .check .mark { animation: draw 0.45s var(--ease) 0.45s forwards; }
+.paid-show > :not(.check) { animation: rise 0.55s var(--ease) 0.3s both; }
+.paid-title { font-size: 20px; font-weight: 700; }
+.stage-actions.single { grid-template-columns: 1fr; width: min(280px, 100%); }
+@media (max-width: 560px) {
+  .term-me .me-text { display: none; }
+}
