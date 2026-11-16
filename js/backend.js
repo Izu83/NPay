@@ -81,9 +81,9 @@ const Backend = (() => {
     return loadMe();
   }
 
-  async function signOut() {
+  async function signOut(scope = "global") {
     unsubscribeAll();
-    await sb.auth.signOut().catch(() => {});
+    await sb.auth.signOut({ scope }).catch(() => {});
     me = null;
   }
 
@@ -106,7 +106,7 @@ const Backend = (() => {
   async function deleteAccount(password) {
     await verifyPassword(password);
     await run(sb.rpc("delete_account"));
-    await signOut();
+    await signOut("local"); // the user is gone on the server; just forget the session here
   }
 
   const history = (limit = 100) =>
